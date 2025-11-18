@@ -34,11 +34,12 @@ type Listing = {
 
 // Fallback images if a listing doesn't have real photos yet
 const defaultHeroImages = [
-  "https://images.pexels.com/photos/8136916/pexels-photo-8136916.jpeg",
-  "https://images.pexels.com/photos/2611877/pexels-photo-2611877.jpeg",
-  "https://images.pexels.com/photos/4392270/pexels-photo-4392270.jpeg",
-  "https://images.pexels.com/photos/6585763/pexels-photo-6585763.jpeg",
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-1.jpg",
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-2.jpg",
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-3.jpg",
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-4.jpg",
 ];
+
 
 // Sample listings used when there is no Firestore doc
 const sampleListings: Listing[] = [

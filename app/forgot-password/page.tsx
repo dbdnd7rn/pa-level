@@ -1,97 +1,90 @@
-// app/forgot-password/page.tsx
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useAuth } from "../_components/AuthProvider";
+import Link from "next/link";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { getClientAuth } from "@/lib/firebaseClient";
 
 export default function ForgotPasswordPage() {
-  const { resetPassword } = useAuth();
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage(null);
-    setError(null);
-
+    setMsg(null);
+    setErr(null);
+    setSending(true);
     try {
-      await resetPassword(email);
-      setMessage(
-        "If an account exists with that email, a password reset link has been sent."
-      );
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message ?? "Could not send reset link.");
+      await sendPasswordResetEmail(getClientAuth(), email);
+      setMsg("Password reset link sent. Check your inbox.");
+      setEmail("");
+    } catch (e: any) {
+      console.error(e);
+      setErr(e?.message || "Failed to send reset email.");
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-[#0e2756]">
-      <header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-5">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Link href="/" className="text-2xl font-extrabold tracking-tight">
           <span className="text-[#0e2756]">pa</span>
           <span className="text-[#ff0f64]">level</span>
         </Link>
-        <Link href="/login" className="text-sm font-semibold text-[#0e2756]">
-          Back to login
-        </Link>
+        <nav className="flex items-center gap-6 text-sm font-semibold">
+          <Link href="/login" className="text-[#0e2756]">Login</Link>
+          <Link href="/signup" className="text-[#0e2756]">Create account</Link>
+        </nav>
       </header>
 
-      <main className="mx-auto flex max-w-md flex-col px-6 pb-16 pt-4">
-        <h1 className="text-2xl font-extrabold">Reset your password</h1>
-        <p className="mt-2 text-sm text-[#5f6b85]">
-          Enter the email you use for Pa-Level and we&apos;ll send you a reset
-          link.
-        </p>
+      <main className="mx-auto flex max-w-6xl flex-col items-center justify-center px-6 pb-16 pt-6">
+        <div className="w-full max-w-md rounded-3xl bg-white px-6 py-7 shadow-[0_20px_40px_rgba(0,0,0,0.12)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ff0f64]">
+            Reset password
+          </p>
+          <h1 className="mt-2 text-2xl font-extrabold">Forgot your password?</h1>
+          <p className="mt-1 text-xs text-[#5f6b85]">
+            Enter your email and we’ll send you a reset link.
+          </p>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-sm">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-              Email address
-            </label>
-            <input
-              type="email"
-              required
-              className="w-full rounded-2xl border border-[#d9deef] bg-white px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          {message && (
-            <div className="rounded-2xl bg-[#e6f8f3] px-4 py-3 text-xs text-[#047857]">
-              {message}
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4 text-sm">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-          )}
-          {error && (
-            <div className="rounded-2xl bg-[#ffe6e6] px-4 py-3 text-xs text-[#b91c1c]">
-              {error}
-            </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-2 w-full rounded-full bg-[#ff0f64] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(255,15,100,0.45)] disabled:opacity-60"
-          >
-            {loading ? "Sending link…" : "Send reset link"}
-          </button>
-        </form>
+            {msg && <p className="text-xs font-semibold text-green-700">{msg}</p>}
+            {err && <p className="text-xs font-semibold text-[#b91c1c]">{err}</p>}
 
-        <p className="mt-4 text-xs text-[#9ba3c4]">
-          If you remember your password, you can{" "}
-          <Link href="/login" className="font-semibold text-[#0e2756]">
-            go back to login
-          </Link>{" "}
-          instead.
-        </p>
+            <button
+              type="submit"
+              disabled={sending}
+              className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-[#ff0f64] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(255,15,100,0.45)] disabled:opacity-70"
+            >
+              {sending ? "Sending..." : "Send reset link"}
+            </button>
+          </form>
+
+          <p className="mt-4 text-center text-[11px] text-[#5f6b85]">
+            Remembered your password?{" "}
+            <Link href="/login" className="font-semibold text-[#ff0f64]">
+              Log in
+            </Link>
+          </p>
+        </div>
       </main>
     </div>
   );

@@ -1,3 +1,4 @@
+// app/tenant-dashboard/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -12,7 +13,7 @@ import {
   DocumentData,
   QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { db } from "../../lib/firebaseClient";
+import { getClientDb } from "../../lib/firebaseClient";
 
 type SavedRoom = {
   id: string;
@@ -41,7 +42,7 @@ type Deposit = {
   date: string;
 };
 
-// Sample data if Firestore is empty
+// --- Sample fallbacks (shown if Firestore has no data) ---
 const sampleSavedRooms: SavedRoom[] = [
   {
     id: "1",
@@ -108,6 +109,7 @@ const sampleDeposits: Deposit[] = [
   },
 ];
 
+// --- mappers ---
 function mapSavedRoomDoc(
   docSnap: QueryDocumentSnapshot<DocumentData>
 ): SavedRoom {
@@ -165,10 +167,8 @@ function mapDepositDoc(
 export default function TenantDashboardPage() {
   const { user, logout } = useAuth();
 
-  const [savedRooms, setSavedRooms] =
-    useState<SavedRoom[]>(sampleSavedRooms);
-  const [applications, setApplications] =
-    useState<Application[]>(sampleApplications);
+  const [savedRooms, setSavedRooms] = useState<SavedRoom[]>(sampleSavedRooms);
+  const [applications, setApplications] = useState<Application[]>(sampleApplications);
   const [deposits, setDeposits] = useState<Deposit[]>(sampleDeposits);
   const [usingSamples, setUsingSamples] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -179,6 +179,8 @@ export default function TenantDashboardPage() {
     const load = async () => {
       setLoading(true);
       try {
+        // 🔸 Initialize Firestore lazily on the client
+        const db = getClientDb();
         const userDoc = doc(db, "users", user.uid);
 
         const [savedSnap, appSnap, depSnap] = await Promise.all([
@@ -187,8 +189,7 @@ export default function TenantDashboardPage() {
           getDocs(collection(userDoc, "deposits")),
         ]);
 
-        const hasAny =
-          !savedSnap.empty || !appSnap.empty || !depSnap.empty;
+        const hasAny = !savedSnap.empty || !appSnap.empty || !depSnap.empty;
 
         if (!hasAny) {
           setSavedRooms(sampleSavedRooms);
@@ -200,25 +201,12 @@ export default function TenantDashboardPage() {
 
         setUsingSamples(false);
 
-        if (!savedSnap.empty) {
-          setSavedRooms(savedSnap.docs.map(mapSavedRoomDoc));
-        } else {
-          setSavedRooms([]);
-        }
-
-        if (!appSnap.empty) {
-          setApplications(appSnap.docs.map(mapApplicationDoc));
-        } else {
-          setApplications([]);
-        }
-
-        if (!depSnap.empty) {
-          setDeposits(depSnap.docs.map(mapDepositDoc));
-        } else {
-          setDeposits([]);
-        }
+        setSavedRooms(savedSnap.empty ? [] : savedSnap.docs.map(mapSavedRoomDoc));
+        setApplications(appSnap.empty ? [] : appSnap.docs.map(mapApplicationDoc));
+        setDeposits(depSnap.empty ? [] : depSnap.docs.map(mapDepositDoc));
       } catch (err) {
         console.error("Tenant dashboard load error:", err);
+        // fall back to samples if something goes wrong
         setSavedRooms(sampleSavedRooms);
         setApplications(sampleApplications);
         setDeposits(sampleDeposits);
@@ -235,10 +223,9 @@ export default function TenantDashboardPage() {
   const totalApplications = applications.length;
   const paidDeposits = deposits.filter((d) => d.status === "paid").length;
 
-  const { user: authUser } = useAuth();
   const displayName =
-    authUser?.displayName?.split(" ")[0] ??
-    (authUser?.email ? authUser.email.split("@")[0] : "there");
+    user?.displayName?.split(" ")[0] ??
+    (user?.email ? user.email.split("@")[0] : "there");
 
   const handleLogout = async () => {
     await logout();
@@ -291,8 +278,7 @@ export default function TenantDashboardPage() {
                   Hey {displayName}, welcome back 👋
                 </h1>
                 <p className="mt-2 text-sm text-[#5f6b85]">
-                  Track your saved rooms, applications and deposit status in
-                  one place.
+                  Track your saved rooms, applications and deposit status in one place.
                 </p>
                 <p className="mt-1 text-[11px] text-[#9ba3c4]">
                   {loading
@@ -331,9 +317,7 @@ export default function TenantDashboardPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
                   Applications
                 </p>
-                <p className="mt-3 text-2xl font-extrabold">
-                  {totalApplications}
-                </p>
+                <p className="mt-3 text-2xl font-extrabold">{totalApplications}</p>
                 <p className="mt-1 text-xs text-[#5f6b85]">
                   Keep an eye on which landlords have replied.
                 </p>
@@ -356,12 +340,9 @@ export default function TenantDashboardPage() {
               <div className="rounded-3xl bg-white px-5 py-5 shadow-[0_18px_35px_rgba(0,0,0,0.06)]">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-extrabold">
-                      Your saved rooms
-                    </h2>
+                    <h2 className="text-lg font-extrabold">Your saved rooms</h2>
                     <p className="text-xs text-[#5f6b85]">
-                      Rooms you&apos;re considering or have already applied
-                      for.
+                      Rooms you&apos;re considering or have already applied for.
                     </p>
                   </div>
                 </div>
@@ -379,9 +360,7 @@ export default function TenantDashboardPage() {
                         </p>
                         <p className="mt-1 text-[11px] text-[#5f6b85]">
                           From{" "}
-                          <span className="font-semibold">
-                            {room.priceFrom}
-                          </span>
+                          <span className="font-semibold">{room.priceFrom}</span>
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
@@ -425,9 +404,7 @@ export default function TenantDashboardPage() {
                         className="rounded-2xl bg-[#f6f7fb] px-3 py-3 text-xs"
                       >
                         <p className="font-semibold">{a.propertyName}</p>
-                        <p className="text-[11px] text-[#5f6b85]">
-                          {a.roomType}
-                        </p>
+                        <p className="text-[11px] text-[#5f6b85]">{a.roomType}</p>
                         <div className="mt-2 flex items-center justify-between text-[11px]">
                           <span>
                             Status:{" "}
@@ -450,9 +427,7 @@ export default function TenantDashboardPage() {
 
                 {/* Deposits */}
                 <div className="rounded-3xl bg-[#0e2756] px-5 py-5 text-xs text-white shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
-                  <h2 className="text-sm font-extrabold">
-                    Deposits & payments
-                  </h2>
+                  <h2 className="text-sm font-extrabold">Deposits & payments</h2>
                   <p className="mt-1 text-[11px] text-white/80">
                     Once we add a payment gateway, this will connect to real
                     transactions.
@@ -463,12 +438,8 @@ export default function TenantDashboardPage() {
                         key={d.id}
                         className="rounded-2xl bg-white/5 px-3 py-3 text-xs"
                       >
-                        <p className="text-[11px] font-semibold">
-                          {d.propertyName}
-                        </p>
-                        <p className="mt-1 text-base font-extrabold">
-                          {d.amount}
-                        </p>
+                        <p className="text-[11px] font-semibold">{d.propertyName}</p>
+                        <p className="mt-1 text-base font-extrabold">{d.amount}</p>
                         <p className="text-[11px] text-white/75">
                           Status:{" "}
                           <span className="capitalize">

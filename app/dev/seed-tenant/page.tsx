@@ -5,6 +5,7 @@ import Link from "next/link";
 import RequireAuth from "../../_components/RequireAuth";
 import RoleGate from "../../_components/RoleGate";
 import { useAuth } from "../../_components/AuthProvider";
+
 import {
   addDoc,
   collection,
@@ -13,7 +14,9 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { db } from "../../../lib/firebaseClient";
+
+// ✅ client-only lazy getter (do NOT create db at module top)
+import { getClientDb } from "../../../lib/firebaseClient";
 
 export default function SeedTenantPage() {
   const { user } = useAuth();
@@ -32,6 +35,9 @@ export default function SeedTenantPage() {
     setError(null);
 
     try {
+      // 🔸 Initialize Firestore on the client at the moment we need it
+      const db = getClientDb();
+
       const base = doc(db, "users", user.uid);
 
       // Make sure user doc exists & has tenant role
@@ -149,10 +155,7 @@ export default function SeedTenantPage() {
       <RoleGate allowedRole="tenant">
         <div className="min-h-screen bg-[#0b0c10] text-[#f6f7fb]">
           <header className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
-            <Link
-              href="/"
-              className="text-2xl font-extrabold tracking-tight"
-            >
+            <Link href="/" className="text-2xl font-extrabold tracking-tight">
               <span className="text-[#f6f7fb]">pa</span>
               <span className="text-[#ff0f64]">level</span>
             </Link>
@@ -176,8 +179,8 @@ export default function SeedTenantPage() {
                 This page is just for testing. It will create sample
                 <span className="font-semibold"> saved rooms</span>,
                 <span className="font-semibold"> applications</span> and
-                <span className="font-semibold"> deposits</span> under
-                your Firestore document:
+                <span className="font-semibold"> deposits</span> under your
+                Firestore document:
               </p>
               <p className="mt-1 text-[11px] text-[#7e88b4]">
                 <code>users/{user?.uid}/savedRooms</code>,{" "}
@@ -193,17 +196,13 @@ export default function SeedTenantPage() {
                 {loading ? "Seeding data..." : "Seed my tenant data"}
               </button>
 
-              {msg && (
-                <p className="mt-3 text-[11px] text-[#4ade80]">{msg}</p>
-              )}
-              {error && (
-                <p className="mt-3 text-[11px] text-[#f87171]">{error}</p>
-              )}
+              {msg && <p className="mt-3 text-[11px] text-[#4ade80]">{msg}</p>}
+              {error && <p className="mt-3 text-[11px] text-[#f87171]">{error}</p>}
 
               <p className="mt-6 text-[11px] text-[#7e88b4]">
-                You can delete or override this data later when you connect
-                real flows. It&apos;s just to see how the dashboard looks
-                with live Firestore collections.
+                You can delete or override this data later when you connect real
+                flows. It&apos;s just to see how the dashboard looks with live
+                Firestore collections.
               </p>
             </section>
           </main>

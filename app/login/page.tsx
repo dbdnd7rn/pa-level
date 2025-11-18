@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { firebaseAuth } from "../../lib/firebaseClient";
+import { getClientAuth } from "../../lib/firebaseClient";
 import { useAuth } from "../_components/AuthProvider";
 
 type RoleChoice = "tenant" | "landlord";
@@ -27,9 +27,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(firebaseAuth, email, password);
+      // ✅ lazily get auth on the client
+      const auth = getClientAuth();
+      await signInWithEmailAndPassword(auth, email, password);
 
-      // 🔐 set role in context + localStorage
+      // 🔐 persist chosen role in context (and provider can mirror to localStorage)
       setRole(roleChoice);
 
       // Redirect based on role
@@ -47,6 +49,8 @@ export default function LoginPage() {
         message = "Incorrect password.";
       } else if (err?.code === "auth/invalid-credential") {
         message = "Invalid email / password combination.";
+      } else if (err?.code === "auth/too-many-requests") {
+        message = "Too many attempts. Try again later.";
       }
       setErrorMsg(message);
     } finally {
@@ -55,6 +59,9 @@ export default function LoginPage() {
   };
 
   const handleResetPassword = async () => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+
     if (!email) {
       setInfoMsg("Enter your email above first, then click reset.");
       return;
@@ -62,7 +69,7 @@ export default function LoginPage() {
     try {
       await resetPassword(email);
       setInfoMsg("Password reset email sent (if this address exists).");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setErrorMsg("Could not send reset email right now.");
     }
@@ -146,6 +153,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
               />
             </div>
 
@@ -160,17 +168,14 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
               />
             </div>
 
             {errorMsg && (
-              <p className="text-xs font-semibold text-[#b91c1c]">
-                {errorMsg}
-              </p>
+              <p className="text-xs font-semibold text-[#b91c1c]">{errorMsg}</p>
             )}
-            {infoMsg && (
-              <p className="text-xs text-[#047857]">{infoMsg}</p>
-            )}
+            {infoMsg && <p className="text-xs text-[#047857]">{infoMsg}</p>}
 
             <button
               type="submit"
@@ -189,7 +194,7 @@ export default function LoginPage() {
             >
               Forgot password?
             </button>
-            <Link href="/signup" className="text-[#ff0f64] font-semibold">
+            <Link href="/signup" className="font-semibold text-[#ff0f64]">
               Need an account? Sign up
             </Link>
           </div>

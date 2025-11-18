@@ -1,12 +1,7 @@
 // app/room/page.tsx
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -17,7 +12,7 @@ import {
   collection,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "../../lib/firebaseClient";
+import { getClientDb } from "../../lib/firebaseClient";
 import { useAuth } from "../_components/AuthProvider";
 
 type Listing = {
@@ -179,6 +174,7 @@ export default function RoomPage() {
       }
 
       try {
+        const db = getClientDb(); // 🔸 lazy init in browser
         const ref = doc(db, "listings", id);
         const snap = await getDoc(ref);
 
@@ -206,9 +202,10 @@ export default function RoomPage() {
   }, [listingIdFromUrl]);
 
   const photos = useMemo(() => {
-    const imgs = listing?.imageUrls && listing.imageUrls.length > 0
-      ? listing.imageUrls
-      : defaultHeroImages;
+    const imgs =
+      listing?.imageUrls && listing.imageUrls.length > 0
+        ? listing.imageUrls
+        : defaultHeroImages;
     if (imgs.length >= 4) return imgs.slice(0, 4);
     // Ensure at least 4 slots for the layout
     return [...imgs, ...defaultHeroImages].slice(0, 4);
@@ -247,6 +244,7 @@ export default function RoomPage() {
         ? `${formatPrice(listing.monthlyFrom)} / month`
         : "";
 
+      const db = getClientDb(); // 🔸 lazy init
       const ref = doc(db, "users", user.uid, "savedRooms", listing.id);
       await setDoc(ref, {
         listingId: listing.id,
@@ -287,6 +285,7 @@ export default function RoomPage() {
       setEnquiryStatus(null);
 
       // Simple placeholder – store in Firestore so you can inspect later
+      const db = getClientDb(); // 🔸 lazy init
       const ref = collection(db, "users", user.uid, "enquiries");
       await addDoc(ref, {
         listingId: listing.id,

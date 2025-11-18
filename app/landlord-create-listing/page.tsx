@@ -1,3 +1,4 @@
+// app/landlord-create-listing/page.tsx
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -6,7 +7,7 @@ import RequireAuth from "../_components/RequireAuth";
 import RoleGate from "../_components/RoleGate";
 import { useAuth } from "../_components/AuthProvider";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebaseClient";
+import { getClientDb } from "@/lib/firebaseClient";
 
 export default function LandlordCreateListingPage() {
   const { user, logout } = useAuth();
@@ -25,8 +26,7 @@ export default function LandlordCreateListingPage() {
   const [campus, setCampus] = useState("MUST");
   const [city, setCity] = useState("Thyolo");
 
-  const [distanceToCampus, setDistanceToCampus] =
-    useState("< 1km (walking)");
+  const [distanceToCampus, setDistanceToCampus] = useState("< 1km (walking)");
   const [availableFrom, setAvailableFrom] = useState("");
   const [description, setDescription] = useState("");
   const [roomTypes, setRoomTypes] = useState<string[]>([]);
@@ -41,13 +41,11 @@ export default function LandlordCreateListingPage() {
 
   const toggleRoomType = (label: string) => {
     setRoomTypes((prev) =>
-      prev.includes(label)
-        ? prev.filter((x) => x !== label)
-        : [...prev, label]
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
     );
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
 
@@ -56,12 +54,13 @@ export default function LandlordCreateListingPage() {
     setErrorMsg(null);
 
     try {
+      // lazily get Firestore only in the browser
+      const db = getClientDb();
+
       const monthlyNumber = monthlyFrom
         ? parseInt(monthlyFrom.replace(/[^\d]/g, ""), 10)
         : null;
-      const totalRoomsNumber = totalRooms
-        ? parseInt(totalRooms, 10)
-        : null;
+      const totalRoomsNumber = totalRooms ? parseInt(totalRooms, 10) : null;
 
       await addDoc(collection(db, "listings"), {
         ownerId: user.uid,
@@ -73,7 +72,7 @@ export default function LandlordCreateListingPage() {
         monthlyFrom: monthlyNumber,
         totalRooms: totalRoomsNumber,
 
-        // NEW: location fields
+        // location fields
         area: area || null,
         campus: campus || null,
         city: city || null,
@@ -86,9 +85,9 @@ export default function LandlordCreateListingPage() {
         updatedAt: serverTimestamp(),
       });
 
-      setSuccessMsg(
-        "Listing saved! It will now appear on the Browse rooms page."
-      );
+      setSuccessMsg("Listing saved! It will now appear on the Browse rooms page.");
+
+      // reset form
       setTitle("");
       setPropertyType("Student residence");
       setMonthlyFrom("");
@@ -114,19 +113,13 @@ export default function LandlordCreateListingPage() {
         <div className="min-h-screen bg-[#f6f7fb] text-[#0e2756]">
           {/* TOP NAVBAR */}
           <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-            <Link
-              href="/"
-              className="text-2xl font-extrabold tracking-tight"
-            >
+            <Link href="/" className="text-2xl font-extrabold tracking-tight">
               <span className="text-[#0e2756]">pa</span>
               <span className="text-[#ff0f64]">level</span>
             </Link>
 
             <nav className="flex items-center gap-6 text-sm font-semibold">
-              <Link
-                href="/rooms"
-                className="hidden text-[#0e2756] md:inline"
-              >
+              <Link href="/rooms" className="hidden text-[#0e2756] md:inline">
                 Browse rooms
               </Link>
               <Link
@@ -154,9 +147,8 @@ export default function LandlordCreateListingPage() {
                 Create your first listing
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-[#5f6b85]">
-                Hi {displayName}, give students a clear picture of your
-                property – where it is, what it costs and what room types
-                you offer.
+                Hi {displayName}, give students a clear picture of your property – where it
+                is, what it costs and what room types you offer.
               </p>
 
               {/* Stepper */}
@@ -181,290 +173,274 @@ export default function LandlordCreateListingPage() {
           {/* FORM CARD */}
           <main className="mx-auto max-w-5xl px-6 pb-16">
             <div className="-mt-10 rounded-3xl bg-white px-6 py-7 shadow-[0_22px_45px_rgba(0,0,0,0.12)] sm:px-8">
-              <form
-                onSubmit={handleSubmit}
-                className="grid gap-8 lg:grid-cols-[1.3fr,1fr]"
-              >
-                {/* LEFT: FIELDS */}
-                <div className="space-y-6 text-sm">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
-                      Step 2 of 2
-                    </p>
-                    <h2 className="mt-1 text-lg font-extrabold">
-                      Basic listing information
-                    </h2>
-                    <p className="mt-1 text-xs text-[#5f6b85]">
-                      You can always edit this later. For now we just need
-                      a clear headline, rough pricing, location and room
-                      types.
-                    </p>
-                  </div>
-
-                  {successMsg && (
-                    <p className="rounded-2xl bg-[#ecfdf5] px-3 py-2 text-xs text-[#047857]">
-                      {successMsg}
-                    </p>
-                  )}
-                  {errorMsg && (
-                    <p className="rounded-2xl bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
-                      {errorMsg}
-                    </p>
-                  )}
-
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                      Listing title
-                    </label>
-                    <input
-                      className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
-                      placeholder="e.g. Bright student house 5 min from MUST gate"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                    <p className="mt-1 text-[11px] text-[#9ba3c4]">
-                      Short, clear and inviting — students will see this
-                      first.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-3">
+              {/* Make the form wrap both the grid and the footer buttons */}
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-8 lg:grid-cols-[1.3fr,1fr]">
+                  {/* LEFT: FIELDS */}
+                  <div className="space-y-6 text-sm">
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                        Property type
-                      </label>
-                      <select
-                        className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-[9px] text-sm outline-none focus:border-[#ff0f64]"
-                        value={propertyType}
-                        onChange={(e) => setPropertyType(e.target.value)}
-                      >
-                        <option>Student residence</option>
-                        <option>House</option>
-                        <option>Backyard rooms</option>
-                        <option>Lodge-style student housing</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                        Monthly rental from
-                      </label>
-                      <div className="flex items-center gap-1 rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2">
-                        <span className="text-xs text-[#5f6b85]">K</span>
-                        <input
-                          className="w-full border-none bg-transparent text-sm outline-none"
-                          placeholder="80,000"
-                          value={monthlyFrom}
-                          onChange={(e) =>
-                            setMonthlyFrom(e.target.value)
-                          }
-                        />
-                      </div>
-                      <p className="mt-1 text-[11px] text-[#9ba3c4]">
-                        Students will still see a full range of room types
-                        and prices.
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
+                        Step 2 of 2
+                      </p>
+                      <h2 className="mt-1 text-lg font-extrabold">
+                        Basic listing information
+                      </h2>
+                      <p className="mt-1 text-xs text-[#5f6b85]">
+                        You can always edit this later. For now we just need a clear
+                        headline, rough pricing, location and room types.
                       </p>
                     </div>
+
+                    {successMsg && (
+                      <p className="rounded-2xl bg-[#ecfdf5] px-3 py-2 text-xs text-[#047857]">
+                        {successMsg}
+                      </p>
+                    )}
+                    {errorMsg && (
+                      <p className="rounded-2xl bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
+                        {errorMsg}
+                      </p>
+                    )}
+
                     <div>
                       <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                        Total rooms in this property
+                        Listing title
                       </label>
                       <input
-                        type="number"
                         className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
-                        placeholder="e.g. 12"
-                        value={totalRooms}
-                        onChange={(e) => setTotalRooms(e.target.value)}
+                        placeholder="e.g. Bright student house 5 min from MUST gate"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
                       />
+                      <p className="mt-1 text-[11px] text-[#9ba3c4]">
+                        Short, clear and inviting — students will see this first.
+                      </p>
                     </div>
-                  </div>
 
-                  {/* LOCATION FIELDS */}
-                  <div>
-                    <p className="mb-2 text-xs font-semibold text-[#5f6b85]">
-                      Location details
-                    </p>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div>
-                        <label className="mb-1 block text-[11px] font-semibold text-[#5f6b85]">
-                          Area / neighbourhood
-                        </label>
-                        <input
-                          className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
-                          placeholder="e.g. Ndata"
-                          value={area}
-                          onChange={(e) => setArea(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[11px] font-semibold text-[#5f6b85]">
-                          Campus
+                        <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
+                          Property type
                         </label>
                         <select
                           className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-[9px] text-sm outline-none focus:border-[#ff0f64]"
-                          value={campus}
-                          onChange={(e) => setCampus(e.target.value)}
+                          value={propertyType}
+                          onChange={(e) => setPropertyType(e.target.value)}
                         >
-                          <option value="MUST">MUST</option>
-                          <option value="Other">Other</option>
+                          <option>Student residence</option>
+                          <option>House</option>
+                          <option>Backyard rooms</option>
+                          <option>Lodge-style student housing</option>
                         </select>
                       </div>
                       <div>
-                        <label className="mb-1 block text-[11px] font-semibold text-[#5f6b85]">
-                          City / town
+                        <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
+                          Monthly rental from
+                        </label>
+                        <div className="flex items-center gap-1 rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2">
+                          <span className="text-xs text-[#5f6b85]">K</span>
+                          <input
+                            className="w-full border-none bg-transparent text-sm outline-none"
+                            placeholder="80,000"
+                            value={monthlyFrom}
+                            onChange={(e) => setMonthlyFrom(e.target.value)}
+                          />
+                        </div>
+                        <p className="mt-1 text-[11px] text-[#9ba3c4]">
+                          Students will still see a full range of room types and prices.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
+                          Total rooms in this property
                         </label>
                         <input
+                          type="number"
                           className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
-                          placeholder="e.g. Thyolo"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
+                          placeholder="e.g. 12"
+                          value={totalRooms}
+                          onChange={(e) => setTotalRooms(e.target.value)}
                         />
                       </div>
                     </div>
-                    <p className="mt-1 text-[11px] text-[#9ba3c4]">
-                      These fields power the location text students see on
-                      the Browse rooms and detail pages.
-                    </p>
-                  </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                    {/* LOCATION FIELDS */}
                     <div>
-                      <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                        Distance to campus
-                      </label>
-                      <select
-                        className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-[9px] text-sm outline-none focus:border-[#ff0f64]"
-                        value={distanceToCampus}
-                        onChange={(e) =>
-                          setDistanceToCampus(e.target.value)
-                        }
-                      >
-                        <option>&lt; 1km (walking)</option>
-                        <option>1 – 3 km</option>
-                        <option>3 – 5 km</option>
-                        <option>5 km + (transport needed)</option>
-                      </select>
+                      <p className="mb-2 text-xs font-semibold text-[#5f6b85]">
+                        Location details
+                      </p>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-semibold text-[#5f6b85]">
+                            Area / neighbourhood
+                          </label>
+                          <input
+                            className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                            placeholder="e.g. Ndata"
+                            value={area}
+                            onChange={(e) => setArea(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-semibold text-[#5f6b85]">
+                            Campus
+                          </label>
+                          <select
+                            className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-[9px] text-sm outline-none focus:border-[#ff0f64]"
+                            value={campus}
+                            onChange={(e) => setCampus(e.target.value)}
+                          >
+                            <option value="MUST">MUST</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-semibold text-[#5f6b85]">
+                            City / town
+                          </label>
+                          <input
+                            className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                            placeholder="e.g. Thyolo"
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <p className="mt-1 text-[11px] text-[#9ba3c4]">
+                        These fields power the location text students see on the Browse
+                        rooms and detail pages.
+                      </p>
                     </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
+                          Distance to campus
+                        </label>
+                        <select
+                          className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-[9px] text-sm outline-none focus:border-[#ff0f64]"
+                          value={distanceToCampus}
+                          onChange={(e) => setDistanceToCampus(e.target.value)}
+                        >
+                          <option>&lt; 1km (walking)</option>
+                          <option>1 – 3 km</option>
+                          <option>3 – 5 km</option>
+                          <option>5 km + (transport needed)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
+                          Available from
+                        </label>
+                        <input
+                          type="month"
+                          className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                          value={availableFrom}
+                          onChange={(e) => setAvailableFrom(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
                     <div>
                       <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                        Available from
+                        Describe your place
                       </label>
-                      <input
-                        type="month"
-                        className="w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
-                        value={availableFrom}
-                        onChange={(e) =>
-                          setAvailableFrom(e.target.value)
-                        }
+                      <textarea
+                        className="h-28 w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                        placeholder="Highlight Wi-Fi, power backup, security, kitchen setup, study areas, noise level and what makes your place stand out."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
                       />
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                      Describe your place
-                    </label>
-                    <textarea
-                      className="h-28 w-full rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
-                      placeholder="Highlight Wi-Fi, power backup, security, kitchen setup, study areas, noise level and what makes your place stand out."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
-                      What room types do you offer?
-                    </label>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {[
-                        "Single rooms",
-                        "Sharing / double rooms",
-                        "Triple / quad rooms",
-                        "Self-contained units",
-                      ].map((type) => (
-                        <label
-                          key={type}
-                          className="flex items-center gap-2 rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-4 py-3 text-xs"
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4"
-                            checked={roomTypes.includes(type)}
-                            onChange={() => toggleRoomType(type)}
-                          />
-                          {type}
-                        </label>
-                      ))}
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-[#5f6b85]">
+                        What room types do you offer?
+                      </label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {[
+                          "Single rooms",
+                          "Sharing / double rooms",
+                          "Triple / quad rooms",
+                          "Self-contained units",
+                        ].map((type) => (
+                          <label
+                            key={type}
+                            className="flex items-center gap-2 rounded-2xl border border-[#d9deef] bg-[#f9fafc] px-4 py-3 text-xs"
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={roomTypes.includes(type)}
+                              onChange={() => toggleRoomType(type)}
+                            />
+                            {type}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* RIGHT: PREVIEW / EARNINGS CARD */}
-                <aside className="space-y-5 rounded-3xl bg-[#f9fafc] px-5 py-5 text-xs text-[#5f6b85]">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
-                    Quick estimate
-                  </p>
-                  <div className="rounded-2xl bg-white px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a0a6bf]">
-                      Example earnings
-                    </p>
-                    <p className="mt-2 text-xs">
-                      If you fill{" "}
-                      <span className="font-semibold text-[#0e2756]">
-                        10 rooms
-                      </span>{" "}
-                      at K80,000 per month for a 10-month lease, you could
-                      earn:
-                    </p>
-                    <p className="mt-3 text-2xl font-extrabold text-[#0e2756]">
-                      K8,000,000
-                    </p>
-                    <p className="text-[11px] text-[#9ba3c4]">
-                      This is just a rough example. Actual earnings depend
-                      on your final pricing and occupancy.
-                    </p>
-                  </div>
-
-                  <div>
+                  {/* RIGHT: PREVIEW / EARNINGS CARD */}
+                  <aside className="space-y-5 rounded-3xl bg-[#f9fafc] px-5 py-5 text-xs text-[#5f6b85]">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
-                      Tip
+                      Quick estimate
                     </p>
-                    <p className="mt-1 text-xs">
-                      Listings with clear photos, honest descriptions and
-                      realistic pricing get the most enquiries on platforms
-                      like DigsConnect. You’ll add photos in a later
-                      iteration of Pa-Level.
-                    </p>
-                  </div>
-                </aside>
-              </form>
+                    <div className="rounded-2xl bg-white px-4 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a0a6bf]">
+                        Example earnings
+                      </p>
+                      <p className="mt-2 text-xs">
+                        If you fill{" "}
+                        <span className="font-semibold text-[#0e2756]">10 rooms</span>{" "}
+                        at K80,000 per month for a 10-month lease, you could earn:
+                      </p>
+                      <p className="mt-3 text-2xl font-extrabold text-[#0e2756]">K8,000,000</p>
+                      <p className="text-[11px] text-[#9ba3c4]">
+                        This is just a rough example. Actual earnings depend on your final
+                        pricing and occupancy.
+                      </p>
+                    </div>
 
-              {/* FOOT BUTTONS */}
-              <div className="mt-7 flex flex-col items-center justify-between gap-3 border-t border-[#e4e7f3] pt-5 text-xs sm:flex-row">
-                <button
-                  type="button"
-                  className="rounded-full border border-[#d9deef] bg-white px-6 py-2.5 text-xs font-semibold text-[#0e2756]"
-                >
-                  Save as draft (coming soon)
-                </button>
-
-                <div className="flex gap-3">
-                  <Link
-                    href="/rooms"
-                    className="rounded-full bg-[#ff0f64] px-8 py-2.5 text-xs font-semibold text-white shadow-[0_14px_30px_rgba(255,15,100,0.45)]"
-                  >
-                    Preview as a student
-                  </Link>
-                  <button
-                    type="submit"
-                    onClick={handleSubmit}
-                    disabled={loading}
-                    className="rounded-full border border-[#0e2756] bg-[#0e2756] px-8 py-2.5 text-xs font-semibold text-white disabled:opacity-60"
-                  >
-                    {loading ? "Saving..." : "Save listing"}
-                  </button>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
+                        Tip
+                      </p>
+                      <p className="mt-1 text-xs">
+                        Listings with clear photos, honest descriptions and realistic
+                        pricing get the most enquiries. You’ll add photos in a later
+                        iteration of Pa-Level.
+                      </p>
+                    </div>
+                  </aside>
                 </div>
-              </div>
+
+                {/* FOOT BUTTONS (inside the form so submit works) */}
+                <div className="mt-7 flex flex-col items-center justify-between gap-3 border-t border-[#e4e7f3] pt-5 text-xs sm:flex-row">
+                  <button
+                    type="button"
+                    className="rounded-full border border-[#d9deef] bg-white px-6 py-2.5 text-xs font-semibold text-[#0e2756]"
+                  >
+                    Save as draft (coming soon)
+                  </button>
+
+                  <div className="flex gap-3">
+                    <Link
+                      href="/rooms"
+                      className="rounded-full bg-[#ff0f64] px-8 py-2.5 text-xs font-semibold text-white shadow-[0_14px_30px_rgba(255,15,100,0.45)]"
+                    >
+                      Preview as a student
+                    </Link>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="rounded-full border border-[#0e2756] bg-[#0e2756] px-8 py-2.5 text-xs font-semibold text-white disabled:opacity-60"
+                    >
+                      {loading ? "Saving..." : "Save listing"}
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
           </main>
         </div>

@@ -1,7 +1,8 @@
+// app/landlord-dashboard/page.tsx
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import RequireAuth from "../_components/RequireAuth";
 import RoleGate from "../_components/RoleGate";
 import { useAuth } from "../_components/AuthProvider";
@@ -13,103 +14,110 @@ import {
   DocumentData,
   QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { db } from "../../lib/firebaseClient";
+import { getClientDb } from "../../lib/firebaseClient";
 
 type Listing = {
   id: string;
   title: string;
-  area: string;
-  campus: string;
-  city: string;
-  totalRooms: number;
-  occupied: number;
-  monthlyFrom: number;
-  monthlyRevenueEstimate: number;
+  propertyType: string;
+  monthlyFrom?: number | null;
+  totalRooms?: number | null;
+  distanceToCampus?: string | null;
+  availableFrom?: string | null;
+  description?: string | null;
+  roomTypes?: string[];
+  area?: string | null;
+  campus?: string | null;
+  city?: string | null;
+  landlordName?: string | null;
+  createdAt?: any;
+  imageUrls?: string[];
 };
 
-// Sample portfolio if landlord has no Firestore listings yet
+// Fallback images if a listing doesn't have real photos yet
+const defaultHeroImages = [
+  "https://images.pexels.com/photos/8136916/pexels-photo-8136916.jpeg",
+  "https://images.pexels.com/photos/2611877/pexels-photo-2611877.jpeg",
+  "https://images.pexels.com/photos/4392270/pexels-photo-4392270.jpeg",
+  "https://images.pexels.com/photos/6585763/pexels-photo-6585763.jpeg",
+];
+
+// Sample data if Firestore is empty
 const sampleListings: Listing[] = [
   {
     id: "sample-1",
     title: "Pa-Level House 1 | Ndata",
+    propertyType: "Student residence",
+    monthlyFrom: 80000,
+    totalRooms: 32,
+    distanceToCampus: "< 1km (walking)",
+    availableFrom: "2026-02",
+    description:
+      "Bright student house 5 minutes from the MUST gate. Reliable Wi-Fi, backup power and a quiet study area.",
+    roomTypes: ["Single rooms", "Sharing rooms"],
     area: "Ndata",
     campus: "MUST",
     city: "Thyolo",
-    totalRooms: 32,
-    occupied: 27,
-    monthlyFrom: 80000,
-    monthlyRevenueEstimate: 2450000,
+    landlordName: "Pa-Level Estates",
+    imageUrls: defaultHeroImages,
   },
   {
     id: "sample-2",
     title: "Skylight Student Residence",
-    area: "Ndata",
-    campus: "MUST",
-    city: "Thyolo",
-    totalRooms: 40,
-    occupied: 34,
+    propertyType: "Student residence",
     monthlyFrom: 85000,
-    monthlyRevenueEstimate: 3100000,
-  },
-  {
-    id: "sample-3",
-    title: "Campus View Lodge",
+    totalRooms: 40,
+    distanceToCampus: "1 – 3 km",
+    availableFrom: "2026-02",
+    description:
+      "Modern residence with shared kitchens, common rooms and 24/7 security.",
+    roomTypes: ["Single rooms", "Triple / quad rooms"],
     area: "Ndata",
     campus: "MUST",
     city: "Thyolo",
-    totalRooms: 18,
-    occupied: 15,
-    monthlyFrom: 110000,
-    monthlyRevenueEstimate: 1650000,
-  },
-  {
-    id: "sample-4",
-    title: "Green Gardens House",
-    area: "Malindi",
-    campus: "MUST",
-    city: "Thyolo",
-    totalRooms: 10,
-    occupied: 8,
-    monthlyFrom: 70000,
-    monthlyRevenueEstimate: 560000,
+    landlordName: "Skylight Properties",
+    imageUrls: defaultHeroImages,
   },
 ];
 
-function formatK(value: number) {
-  return `K${value.toLocaleString("en-MW")}`;
-}
-
-function mapListingDoc(
-  docSnap: QueryDocumentSnapshot<DocumentData>
-): Listing {
+function mapListingDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Listing {
   const data = docSnap.data();
 
-  const totalRooms =
-    typeof data.totalRooms === "number" ? data.totalRooms : 0;
-  const monthlyFrom =
-    typeof data.monthlyFrom === "number" ? data.monthlyFrom : 0;
-
-  const occupied =
-    typeof data.occupied === "number"
-      ? data.occupied
-      : totalRooms; // assume full for estimate
-
-  const monthlyRevenueEstimate =
-    typeof data.monthlyRevenueEstimate === "number"
-      ? data.monthlyRevenueEstimate
-      : totalRooms * monthlyFrom;
+  // Normalise monthlyFrom to a number if stored as string
+  let monthlyFrom: number | null = null;
+  if (typeof data.monthlyFrom === "number") monthlyFrom = data.monthlyFrom;
+  else if (typeof data.monthlyFrom === "string") {
+    const digits = data.monthlyFrom.replace(/[^\d]/g, "");
+    monthlyFrom = digits ? parseInt(digits, 10) : null;
+  } else if (typeof data.priceFrom === "number") {
+    monthlyFrom = data.priceFrom;
+  }
 
   return {
     id: docSnap.id,
-    title: data.title || "Untitled listing",
-    area: data.area || "Ndata",
-    campus: data.campus || "MUST",
-    city: data.city || "Thyolo",
-    totalRooms,
-    occupied,
+    title: data.title ?? "Untitled listing",
+    propertyType: data.propertyType ?? "Student residence",
     monthlyFrom,
-    monthlyRevenueEstimate,
+    totalRooms: data.totalRooms ?? null,
+    distanceToCampus: data.distanceToCampus ?? null,
+    availableFrom: data.availableFrom ?? null,
+    description: data.description ?? null,
+    roomTypes: Array.isArray(data.roomTypes) ? data.roomTypes : [],
+    area: data.area ?? null,
+    campus: data.campus ?? null,
+    city: data.city ?? null,
+    landlordName: data.landlordName ?? null,
+    createdAt: data.createdAt ?? null,
+    imageUrls:
+      Array.isArray(data.imageUrls) && data.imageUrls.length > 0
+        ? data.imageUrls
+        : defaultHeroImages,
   };
+}
+
+function formatPrice(amount?: number | null) {
+  if (!amount) return "Ask";
+  return `K${amount.toLocaleString("en-MW")}`;
 }
 
 export default function LandlordDashboardPage() {
@@ -123,29 +131,31 @@ export default function LandlordDashboardPage() {
     user?.displayName?.split(" ")[0] ??
     (user?.email ? user.email.split("@")[0] : "there");
 
+  const handleLogout = async () => {
+    await logout();
+  };
+
   useEffect(() => {
     if (!user) return;
 
     const load = async () => {
       setLoading(true);
       try {
-        const q = query(
-          collection(db, "listings"),
-          where("landlordId", "==", user.uid)
-        );
+        const db = getClientDb(); // lazy init on client
+        const q = query(collection(db, "listings"), where("ownerId", "==", user.uid));
         const snap = await getDocs(q);
 
         if (snap.empty) {
+          // No real data → keep samples
           setListings(sampleListings);
           setUsingSamples(true);
           return;
         }
 
-        const docs = snap.docs.map(mapListingDoc);
-        setListings(docs);
+        setListings(snap.docs.map(mapListingDoc));
         setUsingSamples(false);
       } catch (err) {
-        console.error("Error loading landlord listings:", err);
+        console.error("Landlord dashboard load error:", err);
         setListings(sampleListings);
         setUsingSamples(true);
       } finally {
@@ -156,19 +166,19 @@ export default function LandlordDashboardPage() {
     load();
   }, [user]);
 
-  const handleLogout = async () => {
-    await logout();
-  };
-
-  const totalRooms = listings.reduce((sum, p) => sum + p.totalRooms, 0);
-  const occupiedRooms = listings.reduce((sum, p) => sum + p.occupied, 0);
-  const freeRooms = totalRooms - occupiedRooms;
-  const overallOccupancy =
-    totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-  const totalMonthlyRevenue = listings.reduce(
-    (sum, p) => sum + p.monthlyRevenueEstimate,
-    0
+  // Simple stats
+  const totalListings = listings.length;
+  const totalCapacity = useMemo(
+    () =>
+      listings.reduce((sum, l) => sum + (typeof l.totalRooms === "number" ? l.totalRooms : 0), 0),
+    [listings]
   );
+  const avgPrice = useMemo(() => {
+    const prices = listings.map((l) => l.monthlyFrom).filter((n): n is number => !!n);
+    if (prices.length === 0) return null;
+    const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+    return `~ ${formatPrice(avg)}/mo`;
+  }, [listings]);
 
   return (
     <RequireAuth>
@@ -181,27 +191,15 @@ export default function LandlordDashboardPage() {
               <span className="text-[#ff0f64]">level</span>
             </Link>
 
-            <nav className="flex items-center gap-6 text-sm font-semibold">
+            <nav className="flex items-center gap-3 text-sm font-semibold">
               <Link href="/rooms" className="hidden text-[#0e2756] md:inline">
                 Browse rooms
               </Link>
               <Link
-                href="/landlord-resources"
-                className="hidden text-[#0e2756] md:inline"
+                href="/landlord-create-listing"
+                className="rounded-full bg-[#ff0f64] px-5 py-2 text-white shadow-[0_12px_25px_rgba(255,15,100,0.35)]"
               >
-                Landlord resources
-              </Link>
-              <Link
-                href="/landlord-dashboard"
-                className="hidden text-[#0e2756] md:inline"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/profile"
-                className="hidden text-[#0e2756] md:inline"
-              >
-                Profile
+                + Create listing
               </Link>
               <button
                 onClick={handleLogout}
@@ -212,214 +210,174 @@ export default function LandlordDashboardPage() {
             </nav>
           </header>
 
+          {/* HEADER STRIP */}
+          <section className="bg-gradient-to-b from-[#d1e4ff] to-[#f6f7fb] pb-10 pt-6">
+            <div className="mx-auto max-w-6xl px-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0e2756]/70">
+                Landlord dashboard
+              </p>
+              <h1 className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">
+                Hey {displayName}, manage your properties here 👋
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-[#5f6b85]">
+                Track your listings, check interest and keep details up to date.
+              </p>
+              <p className="mt-1 text-[11px] text-[#647099]">
+                {loading
+                  ? "Loading your listings from Firestore…"
+                  : usingSamples
+                  ? "Showing sample listings so you can preview the dashboard. Once you create a listing, it will appear here."
+                  : "These stats reflect your real listings stored in Firestore."}
+              </p>
+            </div>
+          </section>
+
+          {/* STATS */}
           <main className="mx-auto max-w-6xl px-6 pb-16">
-            {/* PAGE HEADER */}
-            <section className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ff0f64]">
-                  Landlord dashboard
-                </p>
-                <h1 className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">
-                  Good morning, {displayName}
-                </h1>
-                <p className="mt-2 text-sm text-[#5f6b85]">
-                  Quick snapshot of your student accommodation near MUST.
-                </p>
-                <p className="mt-1 text-[11px] text-[#9ba3c4]">
-                  {loading
-                    ? "Loading your live listings…"
-                    : usingSamples
-                    ? "Showing sample properties so you can feel the dashboard. Once you add a listing, your real data will appear here."
-                    : "These numbers are based on listings you’ve saved in Pa-Level."}
-                </p>
-              </div>
-              <div className="flex gap-3 text-xs">
-                <button className="rounded-full bg-white px-4 py-2 font-semibold text-[#0e2756] shadow-[0_10px_22px_rgba(0,0,0,0.08)]">
-                  Academic year 2025 / 2026
-                </button>
-                <button className="rounded-full border border-[#ccd1ea] px-4 py-2 font-semibold text-[#5f6b85]">
-                  Export summary
-                </button>
-              </div>
-            </section>
-
-            {/* STATS CARDS */}
-            <section className="grid gap-4 md:grid-cols-4">
+            <section className="-mt-10 grid gap-4 sm:grid-cols-3">
               <div className="rounded-3xl bg-white px-5 py-4 shadow-[0_16px_30px_rgba(0,0,0,0.06)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
-                  Active properties
+                  Active listings
                 </p>
-                <p className="mt-3 text-2xl font-extrabold">
-                  {listings.length}
-                </p>
+                <p className="mt-3 text-2xl font-extrabold">{totalListings}</p>
                 <p className="mt-1 text-xs text-[#5f6b85]">
-                  Near MUST • linked to your profile
+                  Create more to reach more students.
                 </p>
               </div>
 
               <div className="rounded-3xl bg-white px-5 py-4 shadow-[0_16px_30px_rgba(0,0,0,0.06)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
-                  Occupancy
+                  Approx. capacity
                 </p>
-                <p className="mt-3 text-2xl font-extrabold">
-                  {overallOccupancy}%
-                </p>
+                <p className="mt-3 text-2xl font-extrabold">{totalCapacity}</p>
                 <p className="mt-1 text-xs text-[#5f6b85]">
-                  {occupiedRooms} of {totalRooms} beds filled
+                  Sum of rooms across your listings.
                 </p>
               </div>
 
-              <div className="rounded-3xl bg-white px-5 py-4 shadow-[0_16px_30px_rgba(0,0,0,0.06)]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a0a6bf]">
-                  Free beds
-                </p>
-                <p className="mt-3 text-2xl font-extrabold">{freeRooms}</p>
-                <p className="mt-1 text-xs text-[#5f6b85]">
-                  Great time to push your listings
-                </p>
-              </div>
-
-              <div className="rounded-3xl bg-[#ff0f64] px-5 py-4 text-white shadow-[0_18px_35px_rgba(255,15,100,0.55)]">
+              <div className="rounded-3xl bg-[#0e2756] px-5 py-4 text-white shadow-[0_18px_35px_rgba(0,0,0,0.5)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em]">
-                  Est. monthly income
+                  Avg. price
                 </p>
                 <p className="mt-3 text-2xl font-extrabold">
-                  {formatK(totalMonthlyRevenue)}
+                  {avgPrice ?? "—"}
                 </p>
                 <p className="mt-1 text-xs text-white/80">
-                  Based on current confirmed tenants
+                  Based on “Monthly rental from”.
                 </p>
               </div>
             </section>
 
-            {/* MAIN GRID: PROPERTIES + SIDE PANEL */}
-            <section className="mt-10 grid gap-8 lg:grid-cols-[2fr,1.2fr]">
-              {/* PROPERTIES OVERVIEW */}
-              <div className="rounded-3xl bg-white px-5 py-5 shadow-[0_18px_35px_rgba(0,0,0,0.06)]">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-extrabold">
-                      Properties overview
-                    </h2>
-                    <p className="text-xs text-[#5f6b85]">
-                      Track occupancy, starting prices and revenue per
-                      building.
-                    </p>
-                  </div>
-                  <Link
-                    href="/landlord-create-listing"
-                    className="hidden rounded-full bg-[#ff0f64] px-5 py-2 text-xs font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.45)] md:inline"
-                  >
-                    + Add new property
-                  </Link>
+            {/* LISTINGS TABLE/CARDS */}
+            <section className="mt-10">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-extrabold">Your listings</h2>
+                  <p className="text-xs text-[#5f6b85]">
+                    Edit details soon (coming), or preview as students see them.
+                  </p>
                 </div>
-
-                <div className="overflow-hidden rounded-2xl border border-[#edf0fb]">
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="bg-[#f6f7fb] text-[11px] uppercase tracking-wide text-[#9ba3c4]">
-                      <tr>
-                        <th className="px-4 py-3">Property</th>
-                        <th className="px-4 py-3">Rooms</th>
-                        <th className="px-4 py-3">Occupancy</th>
-                        <th className="px-4 py-3">From</th>
-                        <th className="px-4 py-3">Est. monthly</th>
-                        <th className="px-4 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {listings.map((p) => {
-                        const occupancy =
-                          p.totalRooms > 0
-                            ? Math.round(
-                                (p.occupied / p.totalRooms) * 100
-                              )
-                            : 0;
-                        return (
-                          <tr
-                            key={p.id}
-                            className="border-t border-[#edf0fb] text-[13px]"
-                          >
-                            <td className="px-4 py-3">
-                              <p className="font-semibold">{p.title}</p>
-                              <p className="text-[11px] text-[#9ba3c4]">
-                                {p.area} • {p.campus}, {p.city}
-                              </p>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              {p.occupied}/{p.totalRooms}
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#edf0fb]">
-                                  <div
-                                    className="h-full rounded-full bg-[#0e2756]"
-                                    style={{ width: `${occupancy}%` }}
-                                  />
-                                </div>
-                                <span className="text-[11px] text-[#5f6b85]">
-                                  {occupancy}%
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              {formatK(p.monthlyFrom)}
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              {formatK(p.monthlyRevenueEstimate)}
-                            </td>
-                            <td className="px-4 py-3 text-right align-top">
-                              <Link
-                                href={`/room?id=${p.id}`}
-                                className="text-[11px] font-semibold text-[#ff0f64]"
-                              >
-                                View listing →
-                              </Link>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile add property button */}
-                <div className="mt-4 md:hidden">
-                  <Link
-                    href="/landlord-create-listing"
-                    className="inline-flex w-full justify-center rounded-full bg-[#ff0f64] px-5 py-2 text-xs font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.45)]"
-                  >
-                    + Add new property
-                  </Link>
-                </div>
+                <Link
+                  href="/landlord-create-listing"
+                  className="rounded-full bg-[#ff0f64] px-5 py-2 text-xs font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.35)]"
+                >
+                  + New listing
+                </Link>
               </div>
 
-              {/* RIGHT SIDEBAR – keep your earlier cards if you like; keeping short here */}
-              <div className="space-y-6">
-                <div className="rounded-3xl bg-[#0e2756] px-5 py-5 text-xs text-white shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
-                  <h2 className="text-sm font-extrabold">
-                    Payments at a glance
-                  </h2>
-                  <p className="mt-1 text-[11px] text-white/80">
-                    Track deposits and rent coming through Pa-Level.
+              {listings.length === 0 ? (
+                <div className="rounded-3xl border border-[#e4e7f3] bg-white px-6 py-8 text-sm">
+                  <p className="font-semibold">No listings yet</p>
+                  <p className="mt-1 text-[#5f6b85]">
+                    Create your first property to start getting enquiries.
                   </p>
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-2xl bg-white/5 px-3 py-3">
-                      <p className="text-[11px] font-semibold">
-                        Live payments coming soon
-                      </p>
-                      <p className="mt-1 text-[11px] text-white/75">
-                        Once Stripe / Paystack is connected, this card will
-                        show totals from your linked gateway.
-                      </p>
-                    </div>
-                  </div>
                   <Link
-                    href="/landlord-transactions"
-                    className="mt-4 flex w-full items-center justify-center rounded-full bg-[#ff0f64] px-4 py-2 text-[11px] font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.6)]"
+                    href="/landlord-create-listing"
+                    className="mt-4 inline-flex rounded-full bg-[#0e2756] px-4 py-2 text-xs font-semibold text-white"
                   >
-                    View all transactions
+                    Create listing
                   </Link>
                 </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {listings.map((l) => {
+                    const photos =
+                      l.imageUrls && l.imageUrls.length > 0
+                        ? l.imageUrls
+                        : defaultHeroImages;
+                    const firstPhoto = photos[0];
+                    const loc = [l.area, l.campus, l.city]
+                      .filter(Boolean)
+                      .join(" • ");
+
+                    return (
+                      <div
+                        key={l.id}
+                        className="overflow-hidden rounded-3xl border border-[#edf0fb] bg-white shadow-[0_16px_30px_rgba(0,0,0,0.06)]"
+                      >
+                        <div className="overflow-hidden">
+                          <img
+                            src={firstPhoto}
+                            alt={l.title}
+                            className="h-40 w-full object-cover"
+                          />
+                        </div>
+                        <div className="px-5 py-4 text-sm">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9ba3c4]">
+                            {l.propertyType}
+                          </p>
+                          <h3 className="mt-1 text-base font-extrabold">
+                            {l.title}
+                          </h3>
+                          <p className="mt-1 text-[11px] text-[#9ba3c4]">{loc}</p>
+
+                          <div className="mt-3 flex items-center gap-3 text-[11px]">
+                            <span className="rounded-full bg-[#f6f7fb] px-3 py-1">
+                              {l.totalRooms ? `${l.totalRooms} rooms` : "Rooms TBC"}
+                            </span>
+                            <span className="rounded-full bg-[#fff3f8] px-3 py-1 text-[#ff0f64]">
+                              {formatPrice(l.monthlyFrom)} / mo
+                            </span>
+                          </div>
+
+                          <div className="mt-4 flex items-center justify-between text-xs">
+                            <Link
+                              href={`/room?id=${encodeURIComponent(l.id)}`}
+                              className="font-semibold text-[#ff0f64]"
+                            >
+                              Preview public page →
+                            </Link>
+                            <span className="text-[11px] text-[#647099]">
+                              {l.availableFrom
+                                ? `Available: ${l.availableFrom}`
+                                : "Availability: TBC"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* ROADMAP / PLACEHOLDERS */}
+            <section className="mt-10 grid gap-6 md:grid-cols-2">
+              <div className="rounded-3xl bg-white px-5 py-5 text-sm shadow-[0_16px_30px_rgba(0,0,0,0.06)]">
+                <h3 className="text-sm font-extrabold">Next up</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-[#5f6b85]">
+                  <li>Edit listing details & photos (coming soon)</li>
+                  <li>See and respond to student enquiries</li>
+                  <li>Payment status & deposit tracking</li>
+                </ul>
+              </div>
+              <div className="rounded-3xl bg-[#0e2756] px-5 py-5 text-sm text-white shadow-[0_18px_35px_rgba(0,0,0,0.5)]">
+                <h3 className="text-sm font-extrabold">Tips</h3>
+                <p className="mt-2 text-white/80">
+                  Clear photos, honest descriptions and realistic pricing get the
+                  most enquiries. You can add photos in the next iteration of
+                  Pa-Level.
+                </p>
               </div>
             </section>
           </main>

@@ -1,13 +1,11 @@
+// app/signup/page.tsx
 "use client";
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
-import { firebaseAuth } from "../../lib/firebaseClient";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { getClientAuth } from "../../lib/firebaseClient";
 import { useAuth } from "../_components/AuthProvider";
 
 type RoleChoice = "tenant" | "landlord";
@@ -29,11 +27,10 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const cred = await createUserWithEmailAndPassword(
-        firebaseAuth,
-        email,
-        password
-      );
+      // 🔸 initialize Auth lazily on the client
+      const auth = getClientAuth();
+
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
 
       if (fullName) {
         await updateProfile(cred.user, { displayName: fullName });
@@ -42,6 +39,7 @@ export default function SignupPage() {
       // 🔐 set role in context + localStorage
       setRole(roleChoice);
 
+      // Redirect based on role
       if (roleChoice === "landlord") {
         router.push("/landlord-dashboard");
       } else {
@@ -54,6 +52,8 @@ export default function SignupPage() {
         message = "That email is already in use.";
       } else if (err?.code === "auth/weak-password") {
         message = "Password is too weak.";
+      } else if (err?.code === "auth/invalid-email") {
+        message = "Invalid email address.";
       }
       setErrorMsg(message);
     } finally {

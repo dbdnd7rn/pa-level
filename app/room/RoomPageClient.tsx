@@ -11,6 +11,10 @@ import {
   addDoc,
   collection,
   serverTimestamp,
+  getDocs,
+  query,
+  where,
+  limit,
 } from "firebase/firestore";
 import { getClientDb } from "../../lib/firebaseClient";
 import { useAuth } from "../_components/AuthProvider";
@@ -158,6 +162,12 @@ export default function RoomPageClient() {
   const [enquirySubmitting, setEnquirySubmitting] = useState(false);
   const [enquiryStatus, setEnquiryStatus] = useState<string | null>(null);
 
+  // 🔥 related / "More places like this"
+  const [relatedListings, setRelatedListings] = useState<Listing[] | null>(
+    null
+  );
+  const [relatedLoading, setRelatedLoading] = useState(false);
+
   const listingIdFromUrl = searchParams.get("id");
 
   // Load listing from Firestore, else fall back to samples
@@ -200,6 +210,47 @@ export default function RoomPageClient() {
     load();
   }, [listingIdFromUrl]);
 
+  // Load related listings from Firestore for "More places like this"
+  useEffect(() => {
+    const loadRelated = async () => {
+      if (!listing || usingSample) {
+        setRelatedListings(null);
+        return;
+      }
+
+      try {
+        setRelatedLoading(true);
+        const db = getClientDb();
+        const colRef = collection(db, "listings");
+
+        // 👇 this is the bit that was giving you errors – now simplified
+        const qRef = listing.campus
+          ? query(
+              colRef,
+              where("campus", "==", listing.campus),
+              limit(10)
+            )
+          : query(colRef, limit(10));
+
+        const snap = await getDocs(qRef);
+
+        const others: Listing[] = snap.docs
+          .filter((docSnap) => docSnap.id !== listing.id)
+          .map((docSnap) => mapFirestoreListing(docSnap.id, docSnap.data()))
+          .slice(0, 3);
+
+        setRelatedListings(others);
+      } catch (err) {
+        console.error("Error loading related listings:", err);
+        setRelatedListings([]);
+      } finally {
+        setRelatedLoading(false);
+      }
+    };
+
+    loadRelated();
+  }, [listing, usingSample]);
+
   const photos = useMemo(() => {
     const imgs =
       listing?.imageUrls && listing.imageUrls.length > 0
@@ -213,10 +264,15 @@ export default function RoomPageClient() {
   const mainPhoto = photos[0];
   const sidePhotos = photos.slice(1, 4);
 
-  const moreLikeThis = useMemo(
-    () => sampleListings.filter((s) => s.id !== listing?.id).slice(0, 3),
-    [listing]
-  );
+  const moreLikeThis = useMemo(() => {
+    if (usingSample) {
+      return sampleListings.filter((s) => s.id !== listing?.id).slice(0, 3);
+    }
+    if (relatedListings && relatedListings.length > 0) {
+      return relatedListings;
+    }
+    return [];
+  }, [listing, usingSample, relatedListings]);
 
   const locationLine = [listing?.area, listing?.campus, listing?.city]
     .filter(Boolean)
@@ -323,14 +379,14 @@ export default function RoomPageClient() {
   return (
     <div className="min-h-screen bg-white text-[#0e2756]">
       {/* TOP NAVBAR */}
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
         <Link href="/" className="text-2xl font-extrabold tracking-tight">
           <span className="text-[#0e2756]">pa</span>
           <span className="text-[#ff0f64]">level</span>
         </Link>
 
-        <nav className="flex items-center gap-6 text-sm font-semibold">
-          <Link href="/rooms" className="hidden text-[#0e2756] md:inline">
+        <nav className="flex items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
+          <Link href="/rooms" className="text-[#0e2756]">
             Browse rooms
           </Link>
           <Link
@@ -440,7 +496,9 @@ export default function RoomPageClient() {
                 <h3 className="text-sm font-extrabold">General information</h3>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#5f6b85]">
                   <li>Deposit and admin fees confirmed by landlord.</li>
-                  <li>Wi-Fi, power backup and security depend on the property.</li>
+                  <li>
+                    Wi-Fi, power backup and security depend on the property.
+                  </li>
                   <li>
                     Always view in person, or via trusted agents, before paying
                     any money.
@@ -463,7 +521,7 @@ export default function RoomPageClient() {
 
           {/* RIGHT: PRICING / ENQUIRY CARD */}
           <aside className="space-y-4">
-            <div className="rounded-3xl bg_WHITE px-5 py-5 shadow-[0_22px_45px_rgba(0,0,0,0.12)] text-sm">
+            <div className="rounded-3xl bg-white px-5 py-5 shadow-[0_22px_45px_rgba(0,0,0,0.12)] text-sm">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9ba3c4]">
                 Rooms in {listing.propertyType.toLowerCase()} for rent
               </p>
@@ -481,7 +539,7 @@ export default function RoomPageClient() {
 
               <button
                 onClick={() => setShowEnquiry((prev) => !prev)}
-                className="mt-4 flex w-full items-center justify-center rounded-full bg-[#ff0f64] px-4 py-2.5 text-sm font-semibold text_WHITE shadow-[0_18px_35px_rgba(255,15,100,0.6)]"
+                className="mt-4 flex w-full items-center justify-center rounded-full bg-[#ff0f64] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(255,15,100,0.6)]"
               >
                 {showEnquiry ? "Close enquiry form" : "Enquire"}
               </button>
@@ -554,47 +612,67 @@ export default function RoomPageClient() {
             Similar student accommodation near {listing.campus || "your campus"}.
           </p>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            {moreLikeThis.map((item) => {
-              const firstPhoto =
-                item.imageUrls && item.imageUrls.length > 0
-                  ? item.imageUrls[0]
-                  : defaultHeroImages[0];
+          {relatedLoading && !usingSample && (
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-32 animate-pulse rounded-2xl bg-[#e1e6ff]"
+                />
+              ))}
+            </div>
+          )}
 
-              return (
-                <Link
-                  key={item.id}
-                  href={`/room?id=${encodeURIComponent(item.id)}`}
-                  className="group overflow-hidden rounded-2xl border border-[#edf0fb] bg-white shadow-[0_14px_30px_rgba(0,0,0,0.06)]"
-                >
-                  <div className="overflow-hidden">
-                    <img
-                      src={firstPhoto}
-                      alt={item.title}
-                      className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </div>
-                  <div className="px-4 py-3 text-xs">
-                    <p className="text-sm font-semibold group-hover:text-[#ff0f64]">
-                      {item.title}
-                    </p>
-                    <p className="mt-1 text-[11px] text-[#9ba3c4]">
-                      {[item.area, item.campus, item.city]
-                        .filter(Boolean)
-                        .join(" • ")}
-                    </p>
-                    <p className="mt-1 text-[11px] text-[#5f6b85]">
-                      From{" "}
-                      <span className="font-semibold">
-                        {formatPrice(item.monthlyFrom)}
-                      </span>{" "}
-                      / month
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+          {!relatedLoading && moreLikeThis.length > 0 && (
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              {moreLikeThis.map((item) => {
+                const firstPhoto =
+                  item.imageUrls && item.imageUrls.length > 0
+                    ? item.imageUrls[0]
+                    : defaultHeroImages[0];
+
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/room?id=${encodeURIComponent(item.id)}`}
+                    className="group overflow-hidden rounded-2xl border border-[#edf0fb] bg-white shadow-[0_14px_30px_rgba(0,0,0,0.06)]"
+                  >
+                    <div className="overflow-hidden">
+                      <img
+                        src={firstPhoto}
+                        alt={item.title}
+                        className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                    <div className="px-4 py-3 text-xs">
+                      <p className="text-sm font-semibold group-hover:text-[#ff0f64]">
+                        {item.title}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#9ba3c4]">
+                        {[item.area, item.campus, item.city]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#5f6b85]">
+                        From{" "}
+                        <span className="font-semibold">
+                          {formatPrice(item.monthlyFrom)}
+                        </span>{" "}
+                        / month
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {!relatedLoading && !usingSample && moreLikeThis.length === 0 && (
+            <p className="mt-4 text-[11px] text-[#9ba3c4]">
+              No similar live listings yet. As more landlords add rooms, they’ll
+              appear here.
+            </p>
+          )}
         </section>
       </main>
     </div>

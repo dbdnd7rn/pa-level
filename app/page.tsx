@@ -1,44 +1,42 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { collection, getDocs } from "firebase/firestore";
+import { getClientDb } from "../lib/firebaseClient";
 
-type FeaturedRoom = {
+type LiveListing = {
   id: string;
   title: string;
-  roomTypesLabel: string;
-  availableLabel: string;
-  fromLabel: string;
+  area?: string;
+  campus?: string;
+  city?: string;
+  monthlyFrom?: number | null;
+  imageUrls?: string[];
 };
 
-const featuredRooms: FeaturedRoom[] = [
-  {
-    id: "sample-1",
-    title: "Pa-Level Sample House 1 | Ndata",
-    roomTypesLabel: "2 room types available",
-    availableLabel: "Available February 2026",
-    fromLabel: "K80,000",
-  },
-  {
-    id: "sample-2",
-    title: "Pa-Level Sample House 2 | Ndata",
-    roomTypesLabel: "3 room types available",
-    availableLabel: "Available February 2026",
-    fromLabel: "K80,000",
-  },
-  {
-    id: "sample-3",
-    title: "Pa-Level Sample House 3 | Ndata",
-    roomTypesLabel: "4 room types available",
-    availableLabel: "Available February 2026",
-    fromLabel: "K80,000",
-  },
-];
+function normaliseMonthlyFrom(data: any): number | null {
+  if (typeof data?.monthlyFrom === "number") return data.monthlyFrom;
+  if (typeof data?.monthlyFrom === "string") {
+    const digits = data.monthlyFrom.replace(/[^\d]/g, "");
+    return digits ? parseInt(digits, 10) : null;
+  }
+  if (typeof data?.priceFrom === "number") return data.priceFrom;
+  return null;
+}
+
+function formatPrice(amount?: number | null) {
+  if (!amount) return "Ask landlord";
+  return `K${amount.toLocaleString("en-MW")}`;
+}
 
 export default function Home() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+
+  const [listings, setListings] = useState<LiveListing[]>([]);
+  const [loadingListings, setLoadingListings] = useState(true);
 
   const searchHref =
     searchTerm.trim().length > 0
@@ -50,40 +48,78 @@ export default function Home() {
     router.push(searchHref);
   };
 
+  // Load live listings for the home page
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        const db = getClientDb();
+        const snap = await getDocs(collection(db, "listings"));
+        const docs: LiveListing[] = snap.docs.map((docSnap) => {
+          const data = docSnap.data() as any;
+          const monthlyFrom = normaliseMonthlyFrom(data);
+          const imageUrls = Array.isArray(data.imageUrls)
+            ? data.imageUrls
+            : [];
+
+          return {
+            id: docSnap.id,
+            title: data.title ?? "Untitled listing",
+            area: data.area ?? "",
+            campus: data.campus ?? "",
+            city: data.city ?? "",
+            monthlyFrom,
+            imageUrls,
+          };
+        });
+
+        setListings(docs);
+      } catch (err) {
+        console.error("Error loading home featured listings:", err);
+        setListings([]);
+      } finally {
+        setLoadingListings(false);
+      }
+    };
+
+    loadListings();
+  }, []);
+
+  const featuredListings = listings.slice(0, 4);
+  const showEmptyState = !loadingListings && featuredListings.length === 0;
+
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-[#0e2756]">
       {/* TOP NAVBAR */}
-     <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
-  <Link href="/" className="text-2xl font-extrabold tracking-tight">
-    <span className="text-[#0e2756]">pa</span>
-    <span className="text-[#ff0f64]">level</span>
-  </Link>
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
+        <Link href="/" className="text-2xl font-extrabold tracking-tight">
+          <span className="text-[#0e2756]">pa</span>
+          <span className="text-[#ff0f64]">level</span>
+        </Link>
 
-  <nav className="flex items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
-    {/* Only show on larger screens to keep mobile clean */}
-    <Link
-      href="/landlord-resources"
-      className="hidden text-[#0e2756] lg:inline"
-    >
-      Landlord Resources
-    </Link>
+        <nav className="flex items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
+          {/* Only show on larger screens to keep mobile clean */}
+          <Link
+            href="/landlord-resources"
+            className="hidden text-[#0e2756] lg:inline"
+          >
+            Landlord Resources
+          </Link>
 
-    <Link
-      href="/signup"
-      className="rounded-full bg-[#ff0f64] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.35)] sm:px-5 sm:py-2"
-    >
-      Signup
-    </Link>
+          <Link
+            href="/signup"
+            className="rounded-full bg-[#ff0f64] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.35)] sm:px-5 sm:py-2"
+          >
+            Signup
+          </Link>
 
-    <Link
-      href="/login"
-      className="rounded-full border border-[#d9deef] bg-white px-4 py-1.5 text-xs font-semibold text-[#0e2756] sm:px-5 sm:py-2"
-    >
-      Login
-    </Link>
-  </nav>
-</header>
-
+          <Link
+            href="/login"
+            className="rounded-full border border-[#d9deef] bg-white px-4 py-1.5 text-xs font-semibold text-[#0e2756] sm:px-5 sm:py-2"
+          >
+            Login
+          </Link>
+        </nav>
+      </header>
 
       {/* HERO SECTION */}
       <section className="w-full">
@@ -157,34 +193,95 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FEATURED LISTINGS */}
+      {/* FEATURED LISTINGS (LIVE) */}
       <section className="mx-auto mt-4 max-w-6xl px-6 pb-10">
-        <h2 className="mb-6 text-xl font-bold">Featured rooms near MUST</h2>
-        <div className="grid gap-6 md:grid-cols-3">
-          {featuredRooms.map((room) => (
-            <Link
-              key={room.id}
-              href={`/room?id=${room.id}`}
-              className="overflow-hidden rounded-3xl bg-white shadow-[0_18px_35px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(0,0,0,0.14)]"
-            >
-              <div className="h-40 w-full bg-[#c8d6ff]" />
-              <div className="space-y-1 px-5 py-4 text-sm">
-                <p className="text-xs font-semibold text-[#ff0f64]">
-                  Student Residence • {room.roomTypesLabel}
-                </p>
-                <p className="text-sm font-bold">{room.title}</p>
-                <p className="text-xs text-[#5f6b85]">{room.availableLabel}</p>
-                <p className="pt-1 text-xs">
-                  From{" "}
-                  <span className="text-base font-bold text-[#0e2756]">
-                    {room.fromLabel}
-                  </span>{" "}
-                  / month
-                </p>
-              </div>
-            </Link>
-          ))}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold sm:text-xl">
+              Featured rooms near MUST
+            </h2>
+            <p className="mt-1 text-[11px] text-[#5f6b85] sm:text-xs">
+              Showing live listings from landlords using Pa-Level.
+            </p>
+          </div>
+
+          <Link
+            href="/rooms"
+            className="rounded-full bg-[#ff0f64] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(255,15,100,0.45)] sm:px-5 sm:py-2 sm:text-sm"
+          >
+            More rooms →
+          </Link>
         </div>
+
+        {loadingListings && (
+          <div className="grid gap-6 md:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="h-44 animate-pulse rounded-3xl bg-[#e1e6ff]"
+              />
+            ))}
+          </div>
+        )}
+
+        {!loadingListings && featuredListings.length > 0 && (
+          <div className="grid gap-6 md:grid-cols-3">
+            {featuredListings.map((room) => {
+              const firstPhoto =
+                room.imageUrls && room.imageUrls.length > 0
+                  ? room.imageUrls[0]
+                  : "https://images.pexels.com/photos/6585763/pexels-photo-6585763.jpeg";
+
+              const location = [room.area, room.campus, room.city]
+                .filter(Boolean)
+                .join(" • ");
+
+              return (
+                <Link
+                  key={room.id}
+                  href={`/room?id=${room.id}`}
+                  className="overflow-hidden rounded-3xl bg-white shadow-[0_18px_35px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(0,0,0,0.14)]"
+                >
+                  <div className="h-40 w-full overflow-hidden bg-[#c8d6ff]">
+                    <img
+                      src={firstPhoto}
+                      alt={room.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="space-y-1 px-5 py-4 text-sm">
+                    <p className="text-xs font-semibold text-[#ff0f64]">
+                      Student Residence
+                      {location ? ` • ${location}` : ""}
+                    </p>
+                    <p className="text-sm font-bold line-clamp-2">
+                      {room.title}
+                    </p>
+                    <p className="text-xs text-[#5f6b85]">
+                      From{" "}
+                      <span className="text-base font-bold text-[#0e2756]">
+                        {formatPrice(room.monthlyFrom)}
+                      </span>{" "}
+                      / month
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {!loadingListings && featuredListings.length === 0 && (
+          <div className="rounded-3xl border border-dashed border-[#d9deef] bg-white px-5 py-5 text-xs text-[#5f6b85] sm:text-sm">
+            <p className="font-semibold text-[#0e2756]">
+              No live listings yet.
+            </p>
+            <p className="mt-1">
+              As soon as landlords publish rooms, you’ll see featured rooms
+              here. For now, you can still browse the full rooms page.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* OTHER UNIVERSITIES STRIP */}

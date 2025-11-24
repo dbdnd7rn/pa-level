@@ -1,45 +1,42 @@
 // lib/firebaseClient.ts
-import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+"use client";
+
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
-let _app: FirebaseApp | null = null;
-
-const clean = (v?: string) => (v ?? "").replace(/^"+|"+$/g, "").trim();
-
-function getConfig() {
-  // ⬇️ static (literal) reads so Next inlines them at build time
-  const apiKey             = clean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
-  const authDomain         = clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN);
-  const projectId          = clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
-  const storageBucket      = clean(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
-  const messagingSenderId  = clean(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID);
-  const appId              = clean(process.env.NEXT_PUBLIC_FIREBASE_APP_ID);
-  const measurementId      = clean(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID);
-
-  if (!apiKey) throw new Error("Missing NEXT_PUBLIC_FIREBASE_API_KEY");
-  if (!authDomain) throw new Error("Missing NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
-  if (!projectId) throw new Error("Missing NEXT_PUBLIC_FIREBASE_PROJECT_ID");
-  if (!appId) throw new Error("Missing NEXT_PUBLIC_FIREBASE_APP_ID");
-
-  return {
-    apiKey,
-    authDomain,
-    projectId,
-    storageBucket,
-    messagingSenderId,
-    appId,
-    ...(measurementId ? { measurementId } : {}),
-  };
+// remove leading/trailing spaces and zero-width chars
+function clean(v?: string) {
+  return (v ?? "").trim().replace(/[\u200B-\u200D\uFEFF]/g, "");
 }
 
+const cfg = {
+  apiKey: clean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
+  authDomain: clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
+  projectId: clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+  storageBucket: clean(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: clean(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
+  appId: clean(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
+  measurementId: clean(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID),
+};
+
+let app: FirebaseApp | undefined;
+
 export function getClientApp(): FirebaseApp {
-  if (typeof window === "undefined") {
-    throw new Error("getClientApp must be called in the browser");
+  if (!app) {
+    app = getApps()[0] ?? initializeApp(cfg);
+    if (process.env.NODE_ENV === "development") {
+      // safe debug: only show first 6 chars of the key
+      console.log("[firebase] init", {
+        keyStart: cfg.apiKey?.slice(0, 6),
+        authDomain: cfg.authDomain,
+        projectId: cfg.projectId,
+        storageBucket: cfg.storageBucket,
+      });
+    }
   }
-  if (_app) return _app;
-  _app = getApps()[0] ?? initializeApp(getConfig());
-  return _app;
+  return app;
 }
 
 export function getClientAuth(): Auth {
@@ -48,4 +45,8 @@ export function getClientAuth(): Auth {
 
 export function getClientDb(): Firestore {
   return getFirestore(getClientApp());
+}
+
+export function getClientStorage(): FirebaseStorage {
+  return getStorage(getClientApp());
 }

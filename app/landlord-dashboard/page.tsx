@@ -13,6 +13,8 @@ import {
   where,
   DocumentData,
   QueryDocumentSnapshot,
+  deleteDoc,
+  doc,
 } from "firebase/firestore";
 import { getClientDb } from "../../lib/firebaseClient";
 
@@ -80,6 +82,20 @@ const sampleListings: Listing[] = [
   },
 ];
 
+// Extract Cloudinary public_id from a URL (if it’s a Cloudinary image)
+function extractCloudinaryPublicId(
+  url: string | undefined | null
+): string | undefined {
+  if (!url) return undefined;
+  if (!url.includes("res.cloudinary.com")) return undefined;
+  const parts = url.split("/upload/");
+  if (parts.length < 2) return undefined;
+  const afterUpload = parts[1];
+  const withoutQuery = afterUpload.split("?")[0];
+  const noExt = withoutQuery.replace(/\.[a-zA-Z0-9]+$/, "");
+  return noExt || undefined;
+}
+
 function mapListingDoc(docSnap: QueryDocumentSnapshot<DocumentData>): Listing {
   const data = docSnap.data();
 
@@ -126,6 +142,8 @@ export default function LandlordDashboardPage() {
   const [listings, setListings] = useState<Listing[]>(sampleListings);
   const [usingSamples, setUsingSamples] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const displayName =
     user?.displayName?.split(" ")[0] ??
@@ -140,9 +158,13 @@ export default function LandlordDashboardPage() {
 
     const load = async () => {
       setLoading(true);
+      setErrorMsg(null);
       try {
         const db = getClientDb(); // lazy init on client
-        const q = query(collection(db, "listings"), where("ownerId", "==", user.uid));
+        const q = query(
+          collection(db, "listings"),
+          where("ownerId", "==", user.uid)
+        );
         const snap = await getDocs(q);
 
         if (snap.empty) {
@@ -154,8 +176,9 @@ export default function LandlordDashboardPage() {
 
         setListings(snap.docs.map(mapListingDoc));
         setUsingSamples(false);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Landlord dashboard load error:", err);
+        setErrorMsg(err?.message || "Failed to load listings.");
         setListings(sampleListings);
         setUsingSamples(true);
       } finally {
@@ -170,15 +193,71 @@ export default function LandlordDashboardPage() {
   const totalListings = listings.length;
   const totalCapacity = useMemo(
     () =>
-      listings.reduce((sum, l) => sum + (typeof l.totalRooms === "number" ? l.totalRooms : 0), 0),
+      listings.reduce(
+        (sum, l) => sum + (typeof l.totalRooms === "number" ? l.totalRooms : 0),
+        0
+      ),
     [listings]
   );
   const avgPrice = useMemo(() => {
-    const prices = listings.map((l) => l.monthlyFrom).filter((n): n is number => !!n);
+    const prices = listings
+      .map((l) => l.monthlyFrom)
+      .filter((n): n is number => !!n);
     if (prices.length === 0) return null;
-    const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+    const avg = Math.round(
+      prices.reduce((a, b) => a + b, 0) / prices.length
+    );
     return `~ ${formatPrice(avg)}/mo`;
   }, [listings]);
+
+  // Delete a listing (and try to clean Cloudinary)
+  async function handleDeleteListing(listing: Listing) {
+    if (usingSamples) {
+      alert(
+        "These are sample listings only. Create a real listing first, then you’ll be able to delete it here."
+      );
+      return;
+    }
+
+    const ok = window.confirm(
+      `Delete "${listing.title}"? This cannot be undone.`
+    );
+    if (!ok) return;
+
+    try {
+      setDeletingId(listing.id);
+      setErrorMsg(null);
+
+      const db = getClientDb();
+      await deleteDoc(doc(db, "listings", listing.id));
+
+      // Remove from UI
+      setListings((prev) => prev.filter((l) => l.id !== listing.id));
+
+      // Try Cloudinary cleanup (best-effort)
+      const urls = listing.imageUrls || [];
+      const publicIds = urls
+        .map((u) => extractCloudinaryPublicId(u))
+        .filter((pid): pid is string => !!pid);
+
+      if (publicIds.length > 0) {
+        await Promise.allSettled(
+          publicIds.map((pid) =>
+            fetch("/api/cloudinary/destroy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ publicId: pid }),
+            })
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error("Delete listing failed:", err);
+      setErrorMsg(err?.message || "Failed to delete listing.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <RequireAuth>
@@ -229,6 +308,9 @@ export default function LandlordDashboardPage() {
                   ? "Showing sample listings so you can preview the dashboard. Once you create a listing, it will appear here."
                   : "These stats reflect your real listings stored in Firestore."}
               </p>
+              {errorMsg && (
+                <p className="mt-1 text-[11px] text-red-600">{errorMsg}</p>
+              )}
             </div>
           </section>
 
@@ -274,7 +356,7 @@ export default function LandlordDashboardPage() {
                 <div>
                   <h2 className="text-lg font-extrabold">Your listings</h2>
                   <p className="text-xs text-[#5f6b85]">
-                    Edit details soon (coming), or preview as students see them.
+                    Edit, delete or preview how students see them.
                   </p>
                 </div>
                 <Link
@@ -310,6 +392,8 @@ export default function LandlordDashboardPage() {
                       .filter(Boolean)
                       .join(" • ");
 
+                    const isDeleting = deletingId === l.id;
+
                     return (
                       <div
                         key={l.id}
@@ -329,11 +413,15 @@ export default function LandlordDashboardPage() {
                           <h3 className="mt-1 text-base font-extrabold">
                             {l.title}
                           </h3>
-                          <p className="mt-1 text-[11px] text-[#9ba3c4]">{loc}</p>
+                          <p className="mt-1 text-[11px] text-[#9ba3c4]">
+                            {loc}
+                          </p>
 
                           <div className="mt-3 flex items-center gap-3 text-[11px]">
                             <span className="rounded-full bg-[#f6f7fb] px-3 py-1">
-                              {l.totalRooms ? `${l.totalRooms} rooms` : "Rooms TBC"}
+                              {l.totalRooms
+                                ? `${l.totalRooms} rooms`
+                                : "Rooms TBC"}
                             </span>
                             <span className="rounded-full bg-[#fff3f8] px-3 py-1 text-[#ff0f64]">
                               {formatPrice(l.monthlyFrom)} / mo
@@ -341,18 +429,45 @@ export default function LandlordDashboardPage() {
                           </div>
 
                           <div className="mt-4 flex items-center justify-between text-xs">
-                            <Link
-                              href={`/room?id=${encodeURIComponent(l.id)}`}
-                              className="font-semibold text-[#ff0f64]"
-                            >
-                              Preview public page →
-                            </Link>
-                            <span className="text-[11px] text-[#647099]">
-                              {l.availableFrom
-                                ? `Available: ${l.availableFrom}`
-                                : "Availability: TBC"}
-                            </span>
+                            <div className="flex items-center gap-3">
+                              {!usingSamples && (
+                                <Link
+                                  href={`/landlord-edit-listing/${encodeURIComponent(
+                                    l.id
+                                  )}`}
+                                  className="rounded-full border border-[#ccd1ea] px-3 py-1 text-[11px] font-semibold text-[#0e2756]"
+                                >
+                                  Edit
+                                </Link>
+                              )}
+                              <Link
+                                href={`/room?id=${encodeURIComponent(l.id)}`}
+                                className="text-[11px] font-semibold text-[#ff0f64]"
+                              >
+                                Preview →
+                              </Link>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-[#647099]">
+                                {l.availableFrom
+                                  ? `Available: ${l.availableFrom}`
+                                  : "Availability: TBC"}
+                              </span>
+                            </div>
                           </div>
+
+                          {!usingSamples && (
+                            <div className="mt-3 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteListing(l)}
+                                disabled={isDeleting}
+                                className="rounded-full border border-red-500 px-3 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
+                              >
+                                {isDeleting ? "Deleting…" : "Delete"}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -366,7 +481,7 @@ export default function LandlordDashboardPage() {
               <div className="rounded-3xl bg-white px-5 py-5 text-sm shadow-[0_16px_30px_rgba(0,0,0,0.06)]">
                 <h3 className="text-sm font-extrabold">Next up</h3>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-[#5f6b85]">
-                  <li>Edit listing details & photos (coming soon)</li>
+                  <li>More analytics on student interest</li>
                   <li>See and respond to student enquiries</li>
                   <li>Payment status & deposit tracking</li>
                 </ul>
@@ -374,9 +489,9 @@ export default function LandlordDashboardPage() {
               <div className="rounded-3xl bg-[#0e2756] px-5 py-5 text-sm text-white shadow-[0_18px_35px_rgba(0,0,0,0.5)]">
                 <h3 className="text-sm font-extrabold">Tips</h3>
                 <p className="mt-2 text-white/80">
-                  Clear photos, honest descriptions and realistic pricing get the
-                  most enquiries. You can add photos in the next iteration of
-                  Pa-Level.
+                  Clear photos, honest descriptions and realistic pricing get
+                  the most enquiries. Now you can easily edit or clean up your
+                  listings whenever you want.
                 </p>
               </div>
             </section>

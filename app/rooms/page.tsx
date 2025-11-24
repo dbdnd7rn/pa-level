@@ -130,24 +130,28 @@ export default function RoomsPage() {
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-[#0e2756]">
       {/* TOP NAVBAR */}
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <Link href="/" className="text-2xl font-extrabold tracking-tight">
-          <span className="text-[#0e2756]">pa</span>
-          <span className="text-[#ff0f64]">level</span>
-        </Link>
+ <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
+  <Link href="/" className="text-2xl font-extrabold tracking-tight">
+    <span className="text-[#0e2756]">pa</span>
+    <span className="text-[#ff0f64]">level</span>
+  </Link>
 
-        <nav className="flex items-center gap-6 text-sm font-semibold">
-          <Link href="/login" className="hidden text-[#0e2756] md:inline">
-            Login
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-full bg-[#ff0f64] px-6 py-2 text-sm font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.35)]"
-          >
-            Signup
-          </Link>
-        </nav>
-      </header>
+  <nav className="flex items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
+    <Link
+      href="/login"
+      className="rounded-full border border-[#d9deef] bg-white px-4 py-1.5 text-xs font-semibold text-[#0e2756] sm:px-5 sm:py-2"
+    >
+      Login
+    </Link>
+    <Link
+      href="/signup"
+      className="rounded-full bg-[#ff0f64] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.35)] sm:px-5 sm:py-2"
+    >
+      Signup
+    </Link>
+  </nav>
+</header>
+
 
       <main className="mx-auto max-w-6xl px-6 pb-16">
         {/* Header */}

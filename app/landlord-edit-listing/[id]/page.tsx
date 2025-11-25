@@ -1,3 +1,4 @@
+// app/landlord-edit-listing/page.tsx
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -30,6 +31,9 @@ type Draft = {
   area?: string;
   campus?: string;
   city?: string;
+  coordX?: number | null; // X coordinate (e.g. longitude)
+  coordY?: number | null; // Y coordinate (e.g. latitude)
+  coordZ?: number | null; // Z coordinate (e.g. elevation)
 };
 
 type EditableImage = {
@@ -146,6 +150,9 @@ function EditListingInner({ listingId }: { listingId: string }) {
     area: "",
     campus: "",
     city: "",
+    coordX: undefined,
+    coordY: undefined,
+    coordZ: undefined,
   });
 
   // existing images from Firestore (or sample)
@@ -206,6 +213,13 @@ function EditListingInner({ listingId }: { listingId: string }) {
         const totalRooms =
           typeof data.totalRooms === "number" ? data.totalRooms : null;
 
+        const coordX =
+          typeof data.coordX === "number" ? data.coordX : null;
+        const coordY =
+          typeof data.coordY === "number" ? data.coordY : null;
+        const coordZ =
+          typeof data.coordZ === "number" ? data.coordZ : null;
+
         const imageUrls: string[] =
           Array.isArray(data.imageUrls) && data.imageUrls.length > 0
             ? data.imageUrls
@@ -225,6 +239,9 @@ function EditListingInner({ listingId }: { listingId: string }) {
           area: data.area ?? "",
           campus: data.campus ?? "",
           city: data.city ?? "",
+          coordX,
+          coordY,
+          coordZ,
         });
 
         setImages(
@@ -329,6 +346,12 @@ function EditListingInner({ listingId }: { listingId: string }) {
             typeof draft.totalRooms === "number" ? draft.totalRooms : null,
           availableFrom: draft.availableFrom || null,
           roomTypes: draft.roomTypes || [],
+          coordX:
+            typeof draft.coordX === "number" ? draft.coordX : null,
+          coordY:
+            typeof draft.coordY === "number" ? draft.coordY : null,
+          coordZ:
+            typeof draft.coordZ === "number" ? draft.coordZ : null,
           updatedAt: serverTimestamp(),
           imageUrls: finalImageUrls,
         },
@@ -521,172 +544,231 @@ function EditListingInner({ listingId }: { listingId: string }) {
               <input
                 className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
                 value={draft.distanceToCampus ?? ""}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    distanceToCampus: e.target.value,
-                  }))
-                }
-              />
-            </label>
 
-            <label className="block text-sm">
-              <span className="font-semibold">Available from (YYYY-MM)</span>
-              <input
-                type="month"
-                className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
-                value={draft.availableFrom ?? ""}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, availableFrom: e.target.value }))
-                }
-              />
-            </label>
+            onChange={(e) =>
+              setDraft((d) => ({
+                ...d,
+                distanceToCampus: e.target.value,
+              }))
+            }
+          />
+        </label>
 
-            <label className="block text-sm md:col-span-2">
-              <span className="font-semibold">Description</span>
-              <textarea
-                className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
-                rows={4}
-                value={draft.description ?? ""}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, description: e.target.value }))
-                }
-              />
-            </label>
+        <label className="block text-sm">
+          <span className="font-semibold">Available from (YYYY-MM)</span>
+          <input
+            type="month"
+            className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
+            value={draft.availableFrom ?? ""}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, availableFrom: e.target.value }))
+            }
+          />
+        </label>
 
-            <label className="block text-sm">
-              <span className="font-semibold">Area</span>
-              <input
-                className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
-                value={draft.area ?? ""}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, area: e.target.value }))
-                }
-              />
-            </label>
+        <label className="block text-sm md:col-span-2">
+          <span className="font-semibold">Description</span>
+          <textarea
+            className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
+            rows={4}
+            value={draft.description ?? ""}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, description: e.target.value }))
+            }
+          />
+        </label>
 
-            <label className="block text-sm">
-              <span className="font-semibold">Campus</span>
-              <input
-                className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
-                value={draft.campus ?? ""}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, campus: e.target.value }))
-                }
-              />
-            </label>
+        <label className="block text-sm">
+          <span className="font-semibold">Area</span>
+          <input
+            className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
+            value={draft.area ?? ""}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, area: e.target.value }))
+            }
+          />
+        </label>
 
-            <label className="block text-sm">
-              <span className="font-semibold">City</span>
-              <input
-                className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
-                value={draft.city ?? ""}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, city: e.target.value }))
-                }
-              />
-            </label>
-          </div>
+        <label className="block text-sm">
+          <span className="font-semibold">Campus</span>
+          <input
+            className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
+            value={draft.campus ?? ""}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, campus: e.target.value }))
+            }
+          />
+        </label>
 
-          {/* Photos */}
-          <div className="rounded-2xl border border-[#edf0fb] p-4">
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-sm font-extrabold">Photos</h3>
-              <p className="text-xs text-[#5f6b85]">
-                Up to 12 images total (existing + new)
-              </p>
-            </div>
+        <label className="block text-sm">
+          <span className="font-semibold">City</span>
+          <input
+            className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
+            value={draft.city ?? ""}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, city: e.target.value }))
+            }
+          />
+        </label>
+      </div>
 
-            {/* Existing images */}
-            {images.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                {images.map((img, idx) => (
-                  <div
-                    key={`${img.url}-${idx}`}
-                    className="relative overflow-hidden rounded-2xl"
-                  >
-                    <img
-                      src={img.url}
-                      alt={`Listing photo ${idx + 1}`}
-                      className="h-32 w-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeExistingImage(idx)}
-                      className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+      {/* Coordinates */}
+      <div className="rounded-2xl border border-[#edf0fb] p-4">
+        <h3 className="text-sm font-extrabold">Location coordinates (optional)</h3>
+        <p className="mt-1 text-xs text-[#5f6b85]">
+          Enter X, Y, Z coordinates if you have them. For example, X = longitude, Y = latitude,
+          Z = elevation.
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="block text-sm">
+            <span className="font-semibold">X coordinate</span>
+            <input
+              type="number"
+              className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+              value={draft.coordX ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  coordX: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="e.g. 35.12345"
+            />
+          </label>
 
-            {/* New photos input & previews */}
-            <div className="mt-4 text-xs">
-              <p className="font-semibold">Add new photos</p>
-              <p className="mt-1 text-[11px] text-[#5f6b85]">
-                Browse… {newFiles.length} file(s) selected.
-              </p>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={onPickNewFiles}
-                className="mt-2 block w-full text-xs"
-              />
+          <label className="block text-sm">
+            <span className="font-semibold">Y coordinate</span>
+            <input
+              type="number"
+              className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+              value={draft.coordY ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  coordY: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="e.g. -16.15023"
+            />
+          </label>
 
-              {newPreviews.length > 0 && (
-                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {newPreviews.map((src, idx) => (
-                    <div
-                      key={`new-${idx}`}
-                      className="relative overflow-hidden rounded-2xl"
-                    >
-                      <img
-                        src={src}
-                        alt={`New upload ${idx + 1}`}
-                        className="h-32 w-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeNewImage(idx)}
-                        className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <label className="block text-sm">
+            <span className="font-semibold">Z coordinate (elevation)</span>
+            <input
+              type="number"
+              className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+              value={draft.coordZ ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  coordZ: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="e.g. 1200 (meters)"
+            />
+          </label>
+        </div>
+      </div>
 
-          {/* Status + Delete row */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                type="submit"
-                disabled={saving || deleting}
-                className="rounded-full bg-[#0e2756] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60"
+      {/* Photos */}
+      <div className="rounded-2xl border border-[#edf0fb] p-4">
+        <div className="flex items-baseline justify-between">
+          <h3 className="text-sm font-extrabold">Photos</h3>
+          <p className="text-xs text-[#5f6b85]">
+            Up to 12 images total (existing + new)
+          </p>
+        </div>
+
+        {/* Existing images */}
+        {images.length > 0 && (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {images.map((img, idx) => (
+              <div
+                key={`${img.url}-${idx}`}
+                className="relative overflow-hidden rounded-2xl"
               >
-                {saving ? "Saving…" : "Save changes"}
-              </button>
-              {status && <p className="text-xs text-green-600">{status}</p>}
-              {error && <p className="text-xs text-red-600">{error}</p>}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleDeleteListing}
-              disabled={deleting || saving}
-              className="self-start rounded-full border border-red-500 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
-            >
-              {deleting ? "Deleting…" : "Delete listing"}
-            </button>
+                <img
+                  src={img.url}
+                  alt={`Listing photo ${idx + 1}`}
+                  className="h-32 w-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeExistingImage(idx)}
+                  className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
           </div>
-        </form>
-      </main>
-    </div>
-  );
+        )}
+
+        {/* New photos input & previews */}
+        <div className="mt-4 text-xs">
+          <p className="font-semibold">Add new photos</p>
+          <p className="mt-1 text-[11px] text-[#5f6b85]">
+            Browse… {newFiles.length} file(s) selected.
+          </p>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={onPickNewFiles}
+            className="mt-2 block w-full text-xs"
+          />
+
+          {newPreviews.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {newPreviews.map((src, idx) => (
+                <div
+                  key={`new-${idx}`}
+                  className="relative overflow-hidden rounded-2xl"
+                >
+                  <img
+                    src={src}
+                    alt={`New upload ${idx + 1}`}
+                    className="h-32 w-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeNewImage(idx)}
+                    className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold text-white"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Status + Delete row */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={saving || deleting}
+            className="rounded-full bg-[#0e2756] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+          {status && <p className="text-xs text-green-600">{status}</p>}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleDeleteListing}
+          disabled={deleting || saving}
+          className="self-start rounded-full border border-red-500 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
+        >
+          {deleting ? "Deleting…" : "Delete listing"}
+        </button>
+      </div>
+    </form>
+  </main>
+</div>
+);
 }

@@ -22,6 +22,9 @@ type Draft = {
   area?: string;
   campus?: string;
   city?: string;
+  coordX?: number | null; // X coordinate (e.g. longitude)
+  coordY?: number | null; // Y coordinate (e.g. latitude)
+  coordZ?: number | null; // Z coordinate (e.g. elevation)
 };
 
 export default function CreateListingPage() {
@@ -50,6 +53,9 @@ function CreateListingInner() {
     area: "",
     campus: "",
     city: "",
+    coordX: undefined,
+    coordY: undefined,
+    coordZ: undefined,
   });
 
   const [files, setFiles] = useState<File[]>([]);
@@ -93,6 +99,9 @@ function CreateListingInner() {
         totalRooms: typeof draft.totalRooms === "number" ? draft.totalRooms : null,
         availableFrom: draft.availableFrom || null,
         roomTypes: draft.roomTypes || [],
+        coordX: typeof draft.coordX === "number" ? draft.coordX : null,
+        coordY: typeof draft.coordY === "number" ? draft.coordY : null,
+        coordZ: typeof draft.coordZ === "number" ? draft.coordZ : null,
         ownerId: user.uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -105,8 +114,7 @@ function CreateListingInner() {
       // 2) Upload images to Cloudinary (folder helps you keep things tidy)
       let urls: string[] = [];
       if (files.length > 0) {
-        const uploads = files.map(async (file, idx) => {
-          // Optional: rename client-side if you like, but Cloudinary will store original anyway
+        const uploads = files.map(async (file) => {
           const url = await uploadToCloudinary(file, `pa-level/listings/${listingId}`);
           return url;
         });
@@ -134,6 +142,9 @@ function CreateListingInner() {
         area: "",
         campus: "",
         city: "",
+        coordX: undefined,
+        coordY: undefined,
+        coordZ: undefined,
       });
     } catch (err: any) {
       console.error(err);
@@ -151,7 +162,9 @@ function CreateListingInner() {
           <span className="text-[#ff0f64]">level</span>
         </Link>
         <nav className="text-sm">
-          <Link href="/landlord-dashboard" className="font-semibold">Dashboard</Link>
+          <Link href="/landlord-dashboard" className="font-semibold">
+            Dashboard
+          </Link>
         </nav>
       </header>
 
@@ -224,7 +237,9 @@ function CreateListingInner() {
               <input
                 className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
                 value={draft.distanceToCampus ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, distanceToCampus: e.target.value }))}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, distanceToCampus: e.target.value }))
+                }
                 placeholder="< 1km (walking)"
               />
             </label>
@@ -235,7 +250,9 @@ function CreateListingInner() {
                 type="month"
                 className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
                 value={draft.availableFrom ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, availableFrom: e.target.value }))}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, availableFrom: e.target.value }))
+                }
               />
             </label>
 
@@ -245,7 +262,9 @@ function CreateListingInner() {
                 className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 outline-none focus:border-[#ff0f64]"
                 rows={4}
                 value={draft.description ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, description: e.target.value }))
+                }
                 placeholder="Modern residence with shared kitchens, common rooms and 24/7 security."
               />
             </label>
@@ -279,6 +298,64 @@ function CreateListingInner() {
                 placeholder="Thyolo"
               />
             </label>
+          </div>
+
+          {/* Coordinates */}
+          <div className="rounded-2xl border border-[#edf0fb] p-4">
+            <h3 className="text-sm font-extrabold">Location coordinates (optional)</h3>
+            <p className="mt-1 text-xs text-[#5f6b85]">
+              Enter X, Y, Z coordinates if you have them. For example, X = longitude, Y = latitude,
+              Z = elevation.
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <label className="block text-sm">
+                <span className="font-semibold">X coordinate</span>
+                <input
+                  type="number"
+                  className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                  value={draft.coordX ?? ""}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      coordX: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="e.g. 35.12345"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="font-semibold">Y coordinate</span>
+                <input
+                  type="number"
+                  className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                  value={draft.coordY ?? ""}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      coordY: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="e.g. -16.15023"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="font-semibold">Z coordinate (elevation)</span>
+                <input
+                  type="number"
+                  className="mt-2 w-full rounded-xl border border-[#d9deef] px-3 py-2 text-sm outline-none focus:border-[#ff0f64]"
+                  value={draft.coordZ ?? ""}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      coordZ: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="e.g. 1200 (meters)"
+                />
+              </label>
+            </div>
           </div>
 
           {/* Images */}

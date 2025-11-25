@@ -34,6 +34,9 @@ type Listing = {
   city?: string;
   landlordName?: string;
   imageUrls?: string[];
+  coordX?: number | null; // longitude
+  coordY?: number | null; // latitude
+  coordZ?: number | null; // elevation
 };
 
 // ✅ Hosted via jsDelivr (your repo)
@@ -116,6 +119,19 @@ function mapFirestoreListing(id: string, data: any): Listing {
       ? data.imageUrls
       : defaultHeroImages;
 
+  const coordX =
+    typeof data.coordX === "number" && !Number.isNaN(data.coordX)
+      ? data.coordX
+      : null;
+  const coordY =
+    typeof data.coordY === "number" && !Number.isNaN(data.coordY)
+      ? data.coordY
+      : null;
+  const coordZ =
+    typeof data.coordZ === "number" && !Number.isNaN(data.coordZ)
+      ? data.coordZ
+      : null;
+
   return {
     id,
     title: data.title ?? "Untitled listing",
@@ -137,6 +153,9 @@ function mapFirestoreListing(id: string, data: any): Listing {
     city: data.city ?? "",
     landlordName: data.landlordName ?? "Landlord",
     imageUrls: images,
+    coordX,
+    coordY,
+    coordZ,
   };
 }
 
@@ -223,13 +242,8 @@ export default function RoomPageClient() {
         const db = getClientDb();
         const colRef = collection(db, "listings");
 
-        // 👇 this is the bit that was giving you errors – now simplified
         const qRef = listing.campus
-          ? query(
-              colRef,
-              where("campus", "==", listing.campus),
-              limit(10)
-            )
+          ? query(colRef, where("campus", "==", listing.campus), limit(10))
           : query(colRef, limit(10));
 
         const snap = await getDocs(qRef);
@@ -281,6 +295,24 @@ export default function RoomPageClient() {
   const availableFromLabel = listing?.availableFrom
     ? listing.availableFrom
     : "Flexible / to be confirmed";
+
+  // 🔍 Coordinates + Google Maps link
+  const hasCoords =
+    listing &&
+    listing.coordX != null &&
+    !Number.isNaN(listing.coordX) &&
+    listing.coordY != null &&
+    !Number.isNaN(listing.coordY);
+
+  const coordsLabel =
+    hasCoords && listing
+      ? `${listing.coordY?.toFixed(5)}, ${listing.coordX?.toFixed(5)}`
+      : null;
+
+  const mapsHref =
+    hasCoords && listing
+      ? `https://www.google.com/maps?q=${listing.coordY},${listing.coordX}`
+      : null;
 
   const handleSaveRoom = async () => {
     if (!listing) return;
@@ -515,6 +547,21 @@ export default function RoomPageClient() {
                   </span>{" "}
                   in {listing.city || "the area"}.
                 </p>
+
+                {coordsLabel && mapsHref && (
+                  <p className="mt-2 text-xs text-[#5f6b85]">
+                    Map coordinates:{" "}
+                    <span className="font-semibold">{coordsLabel}</span> ·{" "}
+                    <a
+                      href={mapsHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-[#ff0f64] underline underline-offset-2"
+                    >
+                      Open in Google Maps
+                    </a>
+                  </p>
+                )}
               </div>
             </div>
           </section>

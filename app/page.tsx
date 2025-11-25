@@ -1,30 +1,49 @@
+// app/page.tsx
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, limit, query } from "firebase/firestore";
 import { getClientDb } from "../lib/firebaseClient";
 
-type LiveListing = {
+type FeaturedRoom = {
   id: string;
   title: string;
+  roomTypesLabel: string;
+  availableLabel: string;
+  fromLabel: string;
   area?: string;
   campus?: string;
   city?: string;
-  monthlyFrom?: number | null;
-  imageUrls?: string[];
+  coordX?: number | null;
+  coordY?: number | null;
 };
 
-function normaliseMonthlyFrom(data: any): number | null {
-  if (typeof data?.monthlyFrom === "number") return data.monthlyFrom;
-  if (typeof data?.monthlyFrom === "string") {
-    const digits = data.monthlyFrom.replace(/[^\d]/g, "");
-    return digits ? parseInt(digits, 10) : null;
-  }
-  if (typeof data?.priceFrom === "number") return data.priceFrom;
-  return null;
-}
+// Fallback featured rooms (when no live data yet)
+const fallbackFeaturedRooms: FeaturedRoom[] = [
+  {
+    id: "sample-1",
+    title: "Pa-Level Sample House 1 | Ndata",
+    roomTypesLabel: "2 room types available",
+    availableLabel: "Available February 2026",
+    fromLabel: "K80,000",
+  },
+  {
+    id: "sample-2",
+    title: "Pa-Level Sample House 2 | Ndata",
+    roomTypesLabel: "3 room types available",
+    availableLabel: "Available February 2026",
+    fromLabel: "K80,000",
+  },
+  {
+    id: "sample-3",
+    title: "Pa-Level Sample House 3 | Ndata",
+    roomTypesLabel: "4 room types available",
+    availableLabel: "Available February 2026",
+    fromLabel: "K80,000",
+  },
+];
 
 function formatPrice(amount?: number | null) {
   if (!amount) return "Ask landlord";
@@ -34,9 +53,6 @@ function formatPrice(amount?: number | null) {
 export default function Home() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
-
-  const [listings, setListings] = useState<LiveListing[]>([]);
-  const [loadingListings, setLoadingListings] = useState(true);
 
   const searchHref =
     searchTerm.trim().length > 0
@@ -48,44 +64,84 @@ export default function Home() {
     router.push(searchHref);
   };
 
-  // Load live listings for the home page
+  // 🔥 Live featured rooms from Firestore
+  const [featuredRooms, setFeaturedRooms] = useState<FeaturedRoom[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+
   useEffect(() => {
-    const loadListings = async () => {
+    const loadFeatured = async () => {
       try {
         const db = getClientDb();
-        const snap = await getDocs(collection(db, "listings"));
-        const docs: LiveListing[] = snap.docs.map((docSnap) => {
-          const data = docSnap.data() as any;
-          const monthlyFrom = normaliseMonthlyFrom(data);
-          const imageUrls = Array.isArray(data.imageUrls)
-            ? data.imageUrls
-            : [];
+        const colRef = collection(db, "listings");
+
+        // Simple: just grab up to 4 listings
+        const q = query(colRef, limit(4));
+        const snap = await getDocs(q);
+
+        const rooms: FeaturedRoom[] = snap.docs.map((docSnap) => {
+          const data: any = docSnap.data();
+
+          // monthlyFrom normalisation
+          let monthlyFrom: number | null = null;
+          if (typeof data.monthlyFrom === "number") {
+            monthlyFrom = data.monthlyFrom;
+          } else if (typeof data.monthlyFrom === "string") {
+            const digits = data.monthlyFrom.replace(/[^\d]/g, "");
+            monthlyFrom = digits ? parseInt(digits, 10) : null;
+          } else if (typeof data.priceFrom === "number") {
+            monthlyFrom = data.priceFrom;
+          }
+
+          const roomTypesLabel =
+            Array.isArray(data.roomTypes) && data.roomTypes.length > 0
+              ? `${data.roomTypes.length} room type${
+                  data.roomTypes.length > 1 ? "s" : ""
+                } available`
+              : "Room types on enquiry";
+
+          const availableLabel = data.availableFrom
+            ? `Available ${data.availableFrom}`
+            : "Availability on enquiry";
+
+          const coordX =
+            typeof data.coordX === "number" && !Number.isNaN(data.coordX)
+              ? data.coordX
+              : null;
+          const coordY =
+            typeof data.coordY === "number" && !Number.isNaN(data.coordY)
+              ? data.coordY
+              : null;
 
           return {
             id: docSnap.id,
             title: data.title ?? "Untitled listing",
+            roomTypesLabel,
+            availableLabel,
+            fromLabel: monthlyFrom ? formatPrice(monthlyFrom) : "Ask landlord",
             area: data.area ?? "",
             campus: data.campus ?? "",
             city: data.city ?? "",
-            monthlyFrom,
-            imageUrls,
+            coordX,
+            coordY,
           };
         });
 
-        setListings(docs);
+        setFeaturedRooms(rooms);
       } catch (err) {
-        console.error("Error loading home featured listings:", err);
-        setListings([]);
+        console.error("Error loading featured rooms:", err);
+        setFeaturedRooms([]);
       } finally {
-        setLoadingListings(false);
+        setLoadingFeatured(false);
       }
     };
 
-    loadListings();
+    loadFeatured();
   }, []);
 
-  const featuredListings = listings.slice(0, 4);
-  const showEmptyState = !loadingListings && featuredListings.length === 0;
+  const roomsToShow =
+    !loadingFeatured && featuredRooms.length > 0
+      ? featuredRooms
+      : fallbackFeaturedRooms;
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-[#0e2756]">
@@ -193,94 +249,91 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FEATURED LISTINGS (LIVE) */}
+      {/* FEATURED LISTINGS */}
       <section className="mx-auto mt-4 max-w-6xl px-6 pb-10">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold sm:text-xl">
-              Featured rooms near MUST
-            </h2>
-            <p className="mt-1 text-[11px] text-[#5f6b85] sm:text-xs">
-              Showing live listings from landlords using Pa-Level.
-            </p>
-          </div>
+        <h2 className="mb-2 text-xl font-bold">Featured rooms near MUST</h2>
+        <p className="mb-6 text-xs text-[#5f6b85]">
+          Showing a few rooms from the latest listings. Tap a card to view more
+          details.
+        </p>
 
-          <Link
-            href="/rooms"
-            className="rounded-full bg-[#ff0f64] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(255,15,100,0.45)] sm:px-5 sm:py-2 sm:text-sm"
-          >
-            More rooms →
-          </Link>
-        </div>
-
-        {loadingListings && (
+        {loadingFeatured && (
           <div className="grid gap-6 md:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, idx) => (
+            {Array.from({ length: 3 }).map((_, i) => (
               <div
-                key={idx}
-                className="h-44 animate-pulse rounded-3xl bg-[#e1e6ff]"
+                key={i}
+                className="h-52 animate-pulse rounded-3xl bg-[#dde6ff]"
               />
             ))}
           </div>
         )}
 
-        {!loadingListings && featuredListings.length > 0 && (
-          <div className="grid gap-6 md:grid-cols-3">
-            {featuredListings.map((room) => {
-              const firstPhoto =
-                room.imageUrls && room.imageUrls.length > 0
-                  ? room.imageUrls[0]
-                  : "https://images.pexels.com/photos/6585763/pexels-photo-6585763.jpeg";
+        {!loadingFeatured && (
+          <>
+            <div className="grid gap-6 md:grid-cols-3">
+              {roomsToShow.map((room) => {
+                const hasCoords =
+                  room.coordX != null &&
+                  !Number.isNaN(room.coordX) &&
+                  room.coordY != null &&
+                  !Number.isNaN(room.coordY);
+                const mapsHref = hasCoords
+                  ? `https://www.google.com/maps?q=${room.coordY},${room.coordX}`
+                  : null;
 
-              const location = [room.area, room.campus, room.city]
-                .filter(Boolean)
-                .join(" • ");
+                return (
+                  <Link
+                    key={room.id}
+                    href={`/room?id=${room.id}`}
+                    className="overflow-hidden rounded-3xl bg-white shadow-[0_18px_35px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(0,0,0,0.14)]"
+                  >
+                    {/* Placeholder image strip (you can swap with real image later) */}
+                    <div className="h-40 w-full bg-[#c8d6ff]" />
+                    <div className="space-y-1 px-5 py-4 text-sm">
+                      <p className="text-xs font-semibold text-[#ff0f64]">
+                        Student Residence • {room.roomTypesLabel}
+                      </p>
+                      <p className="text-sm font-bold">{room.title}</p>
+                      <p className="text-xs text-[#5f6b85]">
+                        {room.availableLabel}
+                      </p>
+                      <p className="pt-1 text-xs">
+                        From{" "}
+                        <span className="text-base font-bold text-[#0e2756]">
+                          {room.fromLabel}
+                        </span>{" "}
+                        / month
+                      </p>
 
-              return (
-                <Link
-                  key={room.id}
-                  href={`/room?id=${room.id}`}
-                  className="overflow-hidden rounded-3xl bg-white shadow-[0_18px_35px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(0,0,0,0.14)]"
-                >
-                  <div className="h-40 w-full overflow-hidden bg-[#c8d6ff]">
-                    <img
-                      src={firstPhoto}
-                      alt={room.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="space-y-1 px-5 py-4 text-sm">
-                    <p className="text-xs font-semibold text-[#ff0f64]">
-                      Student Residence
-                      {location ? ` • ${location}` : ""}
-                    </p>
-                    <p className="text-sm font-bold line-clamp-2">
-                      {room.title}
-                    </p>
-                    <p className="text-xs text-[#5f6b85]">
-                      From{" "}
-                      <span className="text-base font-bold text-[#0e2756]">
-                        {formatPrice(room.monthlyFrom)}
-                      </span>{" "}
-                      / month
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                      {hasCoords && mapsHref && (
+                        <p className="pt-1 text-[11px] text-[#5f6b85]">
+                          📍{" "}
+                          <a
+                            href={mapsHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-[#ff0f64] underline underline-offset-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View on map
+                          </a>
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
 
-        {!loadingListings && featuredListings.length === 0 && (
-          <div className="rounded-3xl border border-dashed border-[#d9deef] bg-white px-5 py-5 text-xs text-[#5f6b85] sm:text-sm">
-            <p className="font-semibold text-[#0e2756]">
-              No live listings yet.
-            </p>
-            <p className="mt-1">
-              As soon as landlords publish rooms, you’ll see featured rooms
-              here. For now, you can still browse the full rooms page.
-            </p>
-          </div>
+            <div className="mt-5 flex justify-end">
+              <Link
+                href="/rooms"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-[#0e2756] underline underline-offset-4"
+              >
+                More rooms →
+              </Link>
+            </div>
+          </>
         )}
       </section>
 
@@ -296,7 +349,7 @@ export default function Home() {
             are next on our roadmap. If you study there, Pa-Level is{" "}
             <span className="font-semibold">coming soon</span> to your campus.
           </p>
-          <p className="mt-2 text-xs text-white/70">
+          <p className="mt-2 text-xs text白/70">
             Want us to prioritise your university?{" "}
             <Link
               href="/contact"

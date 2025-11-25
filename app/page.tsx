@@ -1,11 +1,12 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { collection, getDocs, limit, query } from "firebase/firestore";
 import { getClientDb } from "../lib/firebaseClient";
+import TopNav from "./_components/TopNav";
 
 type FeaturedRoom = {
   id: string;
@@ -18,7 +19,16 @@ type FeaturedRoom = {
   city?: string;
   coordX?: number | null;
   coordY?: number | null;
+  imageUrls?: string[];
 };
+
+// ✅ same CDN fallback images as other pages
+const defaultHeroImages = [
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-1.jpg",
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-2.jpg",
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-3.jpg",
+  "https://cdn.jsdelivr.net/gh/dbdnd7rn/pa-level@main/assets/listings/sample-2/room-4.jpg",
+];
 
 // Fallback featured rooms (when no live data yet)
 const fallbackFeaturedRooms: FeaturedRoom[] = [
@@ -28,6 +38,7 @@ const fallbackFeaturedRooms: FeaturedRoom[] = [
     roomTypesLabel: "2 room types available",
     availableLabel: "Available February 2026",
     fromLabel: "K80,000",
+    imageUrls: defaultHeroImages,
   },
   {
     id: "sample-2",
@@ -35,6 +46,7 @@ const fallbackFeaturedRooms: FeaturedRoom[] = [
     roomTypesLabel: "3 room types available",
     availableLabel: "Available February 2026",
     fromLabel: "K80,000",
+    imageUrls: defaultHeroImages,
   },
   {
     id: "sample-3",
@@ -42,6 +54,7 @@ const fallbackFeaturedRooms: FeaturedRoom[] = [
     roomTypesLabel: "4 room types available",
     availableLabel: "Available February 2026",
     fromLabel: "K80,000",
+    imageUrls: defaultHeroImages,
   },
 ];
 
@@ -50,9 +63,43 @@ function formatPrice(amount?: number | null) {
   return `K${amount.toLocaleString("en-MW")}`;
 }
 
+type CampusKey = "MUST" | "MUBAS" | "MZUNI" | "LUANAR" | "KUHeS";
+
+const campusCopy: Record<
+  CampusKey,
+  { badge: string; title: string; body: string }
+> = {
+  MUST: {
+    badge: "LIVE NOW",
+    title: "MUST students can already use Pa-Level 🎉",
+    body: "Browse verified rooms around Ndata & Thyolo below. We’re adding more landlords every semester.",
+  },
+  MUBAS: {
+    badge: "COMING SOON",
+    title: "MUBAS is next on our rollout roadmap.",
+    body: "We’re mapping Blantyre student hotspots and talking to landlords. Want Pa-Level at MUBAS sooner? Drop us a quick message.",
+  },
+  MZUNI: {
+    badge: "COMING SOON",
+    title: "Pa-Level is warming up for MZUNI.",
+    body: "We’re collecting data on popular neighbourhoods in Mzuzu and shortlisting partner properties.",
+  },
+  LUANAR: {
+    badge: "COMING SOON",
+    title: "LUANAR students, we’ve heard you.",
+    body: "Our goal is to make finding a safe, affordable room around campus as simple as ordering airtime.",
+  },
+  KUHeS: {
+    badge: "COMING SOON",
+    title: "KUHeS launch is on our roadmap.",
+    body: "We’re working towards verified rooms close to your teaching hospitals and campuses.",
+  },
+};
+
 export default function Home() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCampus, setSelectedCampus] = useState<CampusKey>("MUST");
 
   const searchHref =
     searchTerm.trim().length > 0
@@ -74,7 +121,7 @@ export default function Home() {
         const db = getClientDb();
         const colRef = collection(db, "listings");
 
-        // Simple: just grab up to 4 listings
+        // grab up to 4 listings
         const q = query(colRef, limit(4));
         const snap = await getDocs(q);
 
@@ -112,6 +159,11 @@ export default function Home() {
               ? data.coordY
               : null;
 
+          const imageUrls =
+            Array.isArray(data.imageUrls) && data.imageUrls.length > 0
+              ? data.imageUrls
+              : defaultHeroImages;
+
           return {
             id: docSnap.id,
             title: data.title ?? "Untitled listing",
@@ -123,6 +175,7 @@ export default function Home() {
             city: data.city ?? "",
             coordX,
             coordY,
+            imageUrls,
           };
         });
 
@@ -145,37 +198,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-[#0e2756]">
-      {/* TOP NAVBAR */}
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
-        <Link href="/" className="text-2xl font-extrabold tracking-tight">
-          <span className="text-[#0e2756]">pa</span>
-          <span className="text-[#ff0f64]">level</span>
-        </Link>
-
-        <nav className="flex items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
-          {/* Only show on larger screens to keep mobile clean */}
-          <Link
-            href="/landlord-resources"
-            className="hidden text-[#0e2756] lg:inline"
-          >
-            Landlord Resources
-          </Link>
-
-          <Link
-            href="/signup"
-            className="rounded-full bg-[#ff0f64] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_12px_25px_rgba(255,15,100,0.35)] sm:px-5 sm:py-2"
-          >
-            Signup
-          </Link>
-
-          <Link
-            href="/login"
-            className="rounded-full border border-[#d9deef] bg-white px-4 py-1.5 text-xs font-semibold text-[#0e2756] sm:px-5 sm:py-2"
-          >
-            Login
-          </Link>
-        </nav>
-      </header>
+      {/* TOP NAVBAR (login-aware) */}
+      <TopNav />
 
       {/* HERO SECTION */}
       <section className="w-full">
@@ -213,23 +237,51 @@ export default function Home() {
 
       {/* UNI TABS + CTA BUTTONS */}
       <section className="mx-auto -mt-6 max-w-6xl px-6 pb-12">
-        {/* University tabs (visual for now) */}
+        {/* University tabs */}
         <div className="flex w-full max-w-3xl gap-3 overflow-x-auto rounded-[999px] bg-white px-3 py-3 shadow-[0_15px_30px_rgba(0,0,0,0.06)]">
-          <button className="rounded-full bg-[#ff0f64] px-6 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(255,15,100,0.5)]">
-            MUST
-          </button>
-          <button className="rounded-full px-6 py-2 text-xs font-semibold text-[#0e2756]">
-            MUBAS
-          </button>
-          <button className="rounded-full px-6 py-2 text-xs font-semibold text-[#0e2756]">
-            MZUNI
-          </button>
-          <button className="rounded-full px-6 py-2 text-xs font-semibold text-[#0e2756]">
-            LUANAR
-          </button>
-          <button className="rounded-full px-6 py-2 text-xs font-semibold text-[#0e2756]">
-            KUHeS
-          </button>
+          {(["MUST", "MUBAS", "MZUNI", "LUANAR", "KUHeS"] as CampusKey[]).map(
+            (campus) => {
+              const isActive = selectedCampus === campus;
+              return (
+                <button
+                  key={campus}
+                  type="button"
+                  onClick={() => setSelectedCampus(campus)}
+                  className={
+                    isActive
+                      ? "rounded-full bg-[#ff0f64] px-6 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(255,15,100,0.5)]"
+                      : "rounded-full px-6 py-2 text-xs font-semibold text-[#0e2756]"
+                  }
+                >
+                  {campus}
+                </button>
+              );
+            }
+          )}
+        </div>
+
+        {/* Campus message card */}
+        <div className="mt-5 max-w-3xl rounded-3xl bg-white px-5 py-4 text-left shadow-[0_15px_30px_rgba(0,0,0,0.06)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ff0f64]">
+            {selectedCampus} • {campusCopy[selectedCampus].badge}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-[#0e2756]">
+            {campusCopy[selectedCampus].title}
+          </p>
+          <p className="mt-1 text-xs text-[#5f6b85]">
+            {campusCopy[selectedCampus].body}{" "}
+            {selectedCampus !== "MUST" && (
+              <>
+                Want to help us launch faster?{" "}
+                <Link
+                  href="/contact"
+                  className="font-semibold text-[#ff0f64] underline underline-offset-2"
+                >
+                  Tell us about your campus.
+                </Link>
+              </>
+            )}
+          </p>
         </div>
 
         {/* CTA buttons */}
@@ -281,14 +333,34 @@ export default function Home() {
                   ? `https://www.google.com/maps?q=${room.coordY},${room.coordX}`
                   : null;
 
+                const handleOpenMap = (
+                  e: React.MouseEvent<HTMLButtonElement>
+                ) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (mapsHref) {
+                    window.open(mapsHref, "_blank", "noopener,noreferrer");
+                  }
+                };
+
+                const firstPhoto =
+                  room.imageUrls && room.imageUrls.length > 0
+                    ? room.imageUrls[0]
+                    : defaultHeroImages[0];
+
                 return (
                   <Link
                     key={room.id}
                     href={`/room?id=${room.id}`}
                     className="overflow-hidden rounded-3xl bg-white shadow-[0_18px_35px_rgba(0,0,0,0.08)] transition-transform hover:-translate-y-1 hover:shadow-[0_22px_40px_rgba(0,0,0,0.14)]"
                   >
-                    {/* Placeholder image strip (you can swap with real image later) */}
-                    <div className="h-40 w-full bg-[#c8d6ff]" />
+                    <div className="h-40 w-full overflow-hidden bg-[#c8d6ff]">
+                      <img
+                        src={firstPhoto}
+                        alt={room.title}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
                     <div className="space-y-1 px-5 py-4 text-sm">
                       <p className="text-xs font-semibold text-[#ff0f64]">
                         Student Residence • {room.roomTypesLabel}
@@ -308,15 +380,13 @@ export default function Home() {
                       {hasCoords && mapsHref && (
                         <p className="pt-1 text-[11px] text-[#5f6b85]">
                           📍{" "}
-                          <a
-                            href={mapsHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={handleOpenMap}
                             className="font-semibold text-[#ff0f64] underline underline-offset-2"
-                            onClick={(e) => e.stopPropagation()}
                           >
                             View on map
-                          </a>
+                          </button>
                         </p>
                       )}
                     </div>
@@ -349,7 +419,7 @@ export default function Home() {
             are next on our roadmap. If you study there, Pa-Level is{" "}
             <span className="font-semibold">coming soon</span> to your campus.
           </p>
-          <p className="mt-2 text-xs text白/70">
+          <p className="mt-2 text-xs text-white/70">
             Want us to prioritise your university?{" "}
             <Link
               href="/contact"

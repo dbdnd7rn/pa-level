@@ -6,10 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 // Firebase (client only)
-import {
-  getClientAuth,
-  getClientDb,
-} from "@/lib/firebaseClient"; // make sure this file exists as we set up earlier
+import { getClientAuth, getClientDb } from "@/lib/firebaseClient";
 
 import {
   collection,
@@ -43,8 +40,9 @@ export default function RoomsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // url filters
-  const q = (searchParams.get("q") || "").trim();
+  // Support both ?search= and ?q= (home page uses `search`)
+  const q =
+    (searchParams.get("search") || searchParams.get("q") || "").trim();
   const campusFilter = (searchParams.get("campus") || "").trim();
   const cityFilter = (searchParams.get("city") || "").trim();
 
@@ -62,7 +60,6 @@ export default function RoomsClient() {
         setLoading(true);
         const db = getClientDb();
 
-        // basic query; refine later if you add indices/fields
         const base = query(
           collection(db, "listings"),
           orderBy("createdAt", "desc"),
@@ -72,12 +69,14 @@ export default function RoomsClient() {
         const snap = await getDocs(base);
         if (cancelled) return;
 
-        const rows: Listing[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }));
+        const rows: Listing[] = snap.docs.map((d) => {
+          const data = d.data() as Omit<Listing, "id">;
+          return {
+            id: d.id,
+            ...data,
+          };
+        });
 
-        // If your DB is empty during development, you can show samples:
         const fallback: Listing[] = [
           {
             id: "sample-1",
@@ -131,9 +130,10 @@ export default function RoomsClient() {
         ];
 
         setListings(rows.length ? rows : fallback);
-      } catch {
-        // In case Firebase is not reachable yet, show samples so UI works
-        setListings((prev) => (prev.length ? prev : []));
+      } catch (e) {
+        console.error("Rooms load error:", e);
+        // If Firebase is not reachable yet, just leave whatever we have
+        setListings((prev) => prev);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -145,7 +145,7 @@ export default function RoomsClient() {
     };
   }, []);
 
-  // text filter
+  // text + campus + city filters
   const filtered = useMemo(() => {
     const needle = q.toLowerCase();
     return listings.filter((l) => {
@@ -184,8 +184,9 @@ export default function RoomsClient() {
 
       const user = auth.currentUser;
       if (!user) {
-        // take them to login with a returnTo param
-        router.push(`/login?returnTo=/room?id=${encodeURIComponent(listing.id)}`);
+        router.push(
+          `/login?returnTo=/room?id=${encodeURIComponent(listing.id)}`
+        );
         return;
       }
 
@@ -249,7 +250,9 @@ export default function RoomsClient() {
             >
               {/* image */}
               <button
-                onClick={() => router.push(`/room?id=${encodeURIComponent(l.id)}`)}
+                onClick={() =>
+                  router.push(`/room?id=${encodeURIComponent(l.id)}`)
+                }
                 className="block h-40 w-full bg-[#c8d6ff] focus:outline-none"
                 title={l.title}
               >
@@ -324,14 +327,16 @@ export default function RoomsClient() {
         })}
       </div>
 
-      {/* “More places like this” strip (simple, uses the same list for now) */}
+      {/* “More places like this” strip */}
       <div className="mt-10">
         <h3 className="mb-4 text-sm font-bold">More places like this</h3>
         <div className="flex gap-4 overflow-x-auto pb-2">
           {filtered.slice(0, 12).map((l) => (
             <button
               key={`more-${l.id}`}
-              onClick={() => router.push(`/room?id=${encodeURIComponent(l.id)}`)}
+              onClick={() =>
+                router.push(`/room?id=${encodeURIComponent(l.id)}`)
+              }
               className="min-w-[240px] rounded-2xl bg-white p-3 text-left shadow-[0_12px_22px_rgba(0,0,0,0.06)]"
               title={l.title}
             >

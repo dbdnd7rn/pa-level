@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { collection, getDocs, limit, query } from "firebase/firestore";
@@ -334,7 +334,7 @@ export default function Home() {
                   : null;
 
                 const handleOpenMap = (
-                  e: React.MouseEvent<HTMLButtonElement>
+                  e: MouseEvent<HTMLButtonElement>
                 ) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -507,12 +507,14 @@ export default function Home() {
 
           {/* Social icons centered */}
           <div className="flex items-center justify-center gap-4">
+            {/* X / Twitter */}
             <a
-              href="#"
-              aria-label="Pa-Level on X"
+              href="https://x.com/VnPCollection"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Victor on X"
               className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f6f7fb] text-[#0e2756] transition hover:bg-[#ff0f64] hover:text-white"
             >
-              {/* X / Twitter icon */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-4 w-4"
@@ -528,12 +530,14 @@ export default function Home() {
               </svg>
             </a>
 
+            {/* Facebook */}
             <a
-              href="#"
-              aria-label="Pa-Level on Facebook"
+              href="https://www.facebook.com/profile.php?id=61550838103065&mibextid=wwXIfr"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Victor on Facebook"
               className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f6f7fb] text-[#0e2756] transition hover:bg-[#ff0f64] hover:text-white"
             >
-              {/* Facebook icon */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-4 w-4"
@@ -544,12 +548,14 @@ export default function Home() {
               </svg>
             </a>
 
+            {/* Instagram */}
             <a
-              href="#"
-              aria-label="Pa-Level on Instagram"
+              href="https://www.instagram.com/ntonga_victor?igsh=cTRoYmwwd3Y1YWRv"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Victor on Instagram"
               className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f6f7fb] text-[#0e2756] transition hover:bg-[#ff0f64] hover:text-white"
             >
-              {/* Instagram icon */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-4 w-4"
@@ -566,12 +572,12 @@ export default function Home() {
               </svg>
             </a>
 
+            {/* YouTube placeholder (no real link yet) */}
             <a
               href="#"
               aria-label="Pa-Level on YouTube"
               className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f6f7fb] text-[#0e2756] transition hover:bg-[#ff0f64] hover:text-white"
             >
-              {/* YouTube-style play icon */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-4 w-4"
